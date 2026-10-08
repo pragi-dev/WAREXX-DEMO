@@ -33,7 +33,9 @@ createServer((req, res) => {
   if (!file.startsWith(SITE)) { res.writeHead(400); return res.end() }
   if (existsSync(file) && statSync(file).isDirectory()) file = path.join(file, 'index.html')
   if (!existsSync(file)) {
-    if (/^\/demo(\/|$)/.test(rel)) file = path.join(SITE, 'demo', 'index.html')
+    // a missing bundle file is a 404, never the page: HTML answered for a .css
+    // or .js is what leaves a stale tab unstyled after a redeploy
+    if (/^\/demo(\/|$)/.test(rel) && !rel.startsWith('/demo/assets/')) file = path.join(SITE, 'demo', 'index.html')
     else if (/^\/m(\/|$)/.test(rel)) file = path.join(SITE, 'm', 'index.html')
     else { res.writeHead(404, { 'Content-Type': 'text/plain' }); return res.end('Not found') }
   }

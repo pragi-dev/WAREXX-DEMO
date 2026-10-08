@@ -16,6 +16,25 @@
       if (/^\/m(\/|$)/.test(location.pathname)) {
         location.replace('/m/?go=' + encodeURIComponent(location.pathname + location.search))
       }
+      // After a redeploy, a tab (or a cached copy of this page) can still name
+      // the previous build's files, which no longer exist — the page would come
+      // up unstyled or blank. If our own stylesheet or script fails to load,
+      // fetch the current page once, bypassing the cache.
+      (function () {
+        var KEY = 'wx_demo_reloaded'
+        function again() {
+          try { if (sessionStorage.getItem(KEY)) return; sessionStorage.setItem(KEY, '1') } catch (e) { return }
+          var u = new URL(location.href); u.searchParams.set('v', Date.now()); location.replace(u.href)
+        }
+        window.addEventListener('error', function (e) {
+          var t = e.target, src = t && (t.href || t.src) || ''
+          if ((t.tagName === 'LINK' || t.tagName === 'SCRIPT') && src.indexOf('/assets/') > -1) again()
+        }, true)
+        window.addEventListener('vite:preloadError', function (e) { e.preventDefault(); again() })
+        window.addEventListener('load', function () {
+          setTimeout(function () { try { sessionStorage.removeItem(KEY) } catch (e) {} }, 10000)
+        })
+      })()
     </script>
     <title>WAREXX · Live demo</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
