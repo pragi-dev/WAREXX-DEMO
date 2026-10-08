@@ -196,7 +196,7 @@ td.num, th.num, .num { font-variant-numeric: tabular-nums; }
   transition: background .15s var(--x-ease), color .15s var(--x-ease), box-shadow .15s var(--x-ease); }
 .wx-wsseg-btn .ico-svg { color: inherit; flex: 0 0 auto; }
 .wx-wsseg-btn:hover { color: var(--x-ink); }
-.wx-wsseg-btn.on { background: var(--x-surface); color: var(--x-ink); box-shadow: 0 0 0 1px var(--x-line), 0 1px 2px rgba(20,20,20,.06); }
+.wx-wsseg-btn.on { background: var(--x-ink); color: #fff; box-shadow: 0 1px 2px rgba(20,20,20,.18); }
 .wx-wsseg-btn.on .ico-svg { color: var(--x-brand); }
 .wx-top .th-search { width: clamp(220px, 26vw, 360px); flex: 0 1 auto; height: 36px; padding: 0 8px 0 12px; display: flex; align-items: center;
   gap: 8px; border-radius: 9px; border: 1px solid var(--x-line); background: var(--x-fill); color: var(--x-ink-4); cursor: text;
