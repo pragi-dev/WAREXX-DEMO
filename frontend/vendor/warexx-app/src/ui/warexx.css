@@ -106,6 +106,12 @@ td.num, th.num, .num { font-variant-numeric: tabular-nums; }
   display: grid; place-items: center; cursor: pointer; transition: background .15s var(--x-ease), color .15s var(--x-ease); }
 .wxnav-fold .ico-svg { color: inherit; }
 .wxnav-fold:hover { background: rgba(255,255,255,.07); color: #fff; }
+.wxnav-brand { display: flex; align-items: center; gap: 9px; min-width: 0; padding: 2px 4px; border: 0; border-radius: 9px;
+  background: transparent; cursor: pointer; }
+.wxnav-brand:hover { background: rgba(255,255,255,.06); }
+.wxnav-brand .brandmark { width: 30px; height: auto; flex: 0 0 30px; }
+.wxnav-brand .wxnav-word { padding: 0; }
+.wxnav.folded .wxnav-headrow { flex-direction: column; gap: 6px; }
 .wxnav-word { padding: 0 6px; display: block; }
 .wxnav-word .wordmark { font-size: 15px; display: block; }
 .wxnav-word .wordmark.with-tag .wm-img { height: 1.95em; width: auto; display: block; }

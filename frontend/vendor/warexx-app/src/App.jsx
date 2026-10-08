@@ -16795,7 +16795,10 @@ function NavSidebar({ ws, items, home, tab, go, badges = {}, wsOk = () => true, 
       <div className="wxnav-panel">
         <div className="wxnav-head">
           <div className="wxnav-headrow">
-            {!mini && <span className="wxnav-word"><Wordmark tagline onLight /></span>}
+            <button className="wxnav-brand" onClick={() => home && pick(home.key)} title="WAREXX — dashboard">
+              <BrandMark />
+              {!mini && <span className="wxnav-word"><Wordmark tagline onLight /></span>}
+            </button>
             {drawer ? (
               <button className="wxnav-fold" onClick={onClose} aria-label="Close navigation menu"><Icon name="x" size={18} /></button>
             ) : (
