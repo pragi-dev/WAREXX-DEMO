@@ -1,8 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm ci && npm run build:landing",
+  "buildCommand": "cd frontend && npm ci && npm run build:site",
   "installCommand": "echo 'dependencies are installed by the build command'",
-  "outputDirectory": "frontend/dist/landing",
+  "outputDirectory": "frontend/dist/site",
   "framework": null,
   "functions": {
     "api/leads.py": {
@@ -11,9 +11,13 @@
     }
   },
   "redirects": [
-    { "source": "/demo", "destination": "https://demo.warexx.aavoraa.com/", "permanent": false },
-    { "source": "/demo/(.*)", "destination": "https://demo.warexx.aavoraa.com/", "permanent": false },
     { "source": "/app", "destination": "https://app.warexx.aavoraa.com/", "permanent": false }
+  ],
+  "rewrites": [
+    { "source": "/demo", "destination": "/demo/index.html" },
+    { "source": "/demo/(.*)", "destination": "/demo/index.html" },
+    { "source": "/m", "destination": "/m/index.html" },
+    { "source": "/m/(.*)", "destination": "/m/index.html" }
   ],
   "headers": [
     {
@@ -26,6 +30,28 @@
     },
     {
       "source": "/(index.html|landing.html)?",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    },
+    {
+      "source": "/(demo|m)(/.*)?",
+      "headers": [
+        { "key": "Content-Security-Policy", "value": "connect-src 'self'; form-action 'self'; base-uri 'self'" },
+        { "key": "X-Robots-Tag", "value": "noindex" }
+      ]
+    },
+    {
+      "source": "/demo/assets/(.*)",
+      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-cache" },
+        { "key": "Service-Worker-Allowed", "value": "/" }
+      ]
+    },
+    {
+      "source": "/data/(.*)",
       "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
     }
   ]

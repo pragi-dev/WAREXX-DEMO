@@ -11,6 +11,7 @@
     "build": "npm --prefix frontend run build",
     "build:landing": "npm --prefix frontend run build:landing",
     "build:demo": "npm --prefix frontend run build:demo",
+    "build:site": "npm --prefix frontend run build:site",
     "preview:demo": "npm --prefix frontend run preview:demo",
     "test": "npm --prefix frontend test",
     "check": "npm --prefix frontend run check",

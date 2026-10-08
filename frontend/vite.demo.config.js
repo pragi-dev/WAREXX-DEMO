@@ -15,7 +15,10 @@ import { mobileMiddleware, writeMobile } from './tools/mobile-page.mjs'
 // It must be served from the ROOT of its origin (e.g. https://demo.warexx.aavoraa.com/):
 // the service worker has to answer /api and /pos, which only a worker at "/" can.
 const here = (p) => fileURLToPath(new URL(p, import.meta.url))
-const OUT = here('./dist/demo')
+// DEMO_BASE / DEMO_OUT: set by tools/site.mjs to build the demo for /demo/ on
+// the landing page's own site. Unset: the demo at the root of its own origin.
+const BASE = process.env.DEMO_BASE || '/'
+const OUT = process.env.DEMO_OUT ? path.resolve(process.env.DEMO_OUT) : here('./dist/demo')
 const DATA = here('../demo-data/recorded')
 
 // /m — the WAREXX phone app, see tools/mobile-page.mjs. Written into the build,
@@ -52,6 +55,7 @@ const demoData = () => ({
 
 export default defineConfig({
   plugins: [react(), phoneApp(), demoData()],
+  base: BASE,
   root: here('./demo'),
   // landing-demo/.env* (VITE_* only — public values, see ../.env.example)
   envDir: here('..'),

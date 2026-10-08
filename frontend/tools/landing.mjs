@@ -27,7 +27,9 @@ const OUT = path.join(FRONTEND, 'dist', 'landing')
 
 const DEFAULTS = {
   dev: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: 'http://localhost:8002/', VITE_APP_URL: 'http://localhost:8000/' },
-  build: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: 'https://demo.warexx.aavoraa.com/', VITE_APP_URL: 'https://app.warexx.aavoraa.com/' },
+  // "/demo/": the demo on this same site (npm run build:site). Set VITE_DEMO_URL
+  // to https://demo.warexx.aavoraa.com/ once the demo has a domain of its own.
+  build: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: '/demo/', VITE_APP_URL: 'https://app.warexx.aavoraa.com/' },
 }
 const KEYS = { VITE_LEAD_ENDPOINT: 'formEndpoint', VITE_DEMO_URL: 'demoAppUrl', VITE_APP_URL: 'appUrl' }
 
@@ -84,29 +86,34 @@ export function landingPage(mode) {
     + `\n<meta http-equiv="Content-Security-Policy" content="${landingCsp(cfg)}">` + html.slice(at)
 }
 
-function build() {
-  rmSync(OUT, { recursive: true, force: true })
-  mkdirSync(OUT, { recursive: true })
+export function build(out = OUT) {
+  rmSync(out, { recursive: true, force: true })
+  mkdirSync(out, { recursive: true })
   const html = landingPage('build')
-  writeFileSync(path.join(OUT, 'index.html'), html)
+  writeFileSync(path.join(out, 'index.html'), html)
   // the address the page had when the app served it; old links keep working
-  writeFileSync(path.join(OUT, 'landing.html'), html)
-  // /demo on the public site → the interactive demo, which must live at the
-  // root of its own origin (its service worker answers /api there). A page for
-  // any static host; _redirects for Netlify / Cloudflare Pages; vercel.json has
-  // the same rule.
+  writeFileSync(path.join(out, 'landing.html'), html)
   const cfg = landingConfig('build')
-  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
-  mkdirSync(path.join(OUT, 'demo'), { recursive: true })
-  writeFileSync(path.join(OUT, 'demo', 'index.html'), '<!doctype html><meta charset="utf-8">'
-    + `<meta http-equiv="refresh" content="0; url=${esc(cfg.demoAppUrl)}"><title>WAREXX demo</title>`
-    + `<a href="${esc(cfg.demoAppUrl)}">Open the WAREXX interactive demo</a>\n`)
-  writeFileSync(path.join(OUT, '_redirects'),
-    `/demo    ${cfg.demoAppUrl}  302\n/demo/*  ${cfg.demoAppUrl}  302\n/app     ${cfg.appUrl}  302\n`)
-  writeFileSync(path.join(OUT, '_headers'),
+  // The demo on ANOTHER site (an absolute VITE_DEMO_URL): /demo here forwards
+  // there — a page for any static host, _redirects for Netlify / Cloudflare
+  // Pages. A relative one ("/demo/") is this site's own demo, built beside the
+  // page by tools/site.mjs, so nothing forwards.
+  const elsewhere = /^https?:\/\//i.test(cfg.demoAppUrl)
+  const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')
+  if (elsewhere) {
+    mkdirSync(path.join(out, 'demo'), { recursive: true })
+    writeFileSync(path.join(out, 'demo', 'index.html'), '<!doctype html><meta charset="utf-8">'
+      + `<meta http-equiv="refresh" content="0; url=${esc(cfg.demoAppUrl)}"><title>WAREXX demo</title>`
+      + `<a href="${esc(cfg.demoAppUrl)}">Open the WAREXX interactive demo</a>\n`)
+  }
+  writeFileSync(path.join(out, '_redirects'),
+    (elsewhere ? `/demo    ${cfg.demoAppUrl}  302\n/demo/*  ${cfg.demoAppUrl}  302\n` : '')
+    + `/app     ${cfg.appUrl}  302\n`)
+  writeFileSync(path.join(out, '_headers'),
     '/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: strict-origin-when-cross-origin\n'
     + '/index.html\n  Cache-Control: no-cache\n')
-  console.log('[landing] built dist/landing', cfg)
+  console.log('[landing] built', path.relative(FRONTEND, out), cfg)
+  return cfg
 }
 
 function dev() {
@@ -131,9 +138,9 @@ function dev() {
   }).listen(port, () => console.log(`[landing] http://localhost:${port}/  (lead form → ${leadApi.href}api/leads)`))
 }
 
-const cmd = process.argv[2]
-if (cmd === 'build') build()
-else if (cmd === 'dev') dev()
-else if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  console.error('usage: node tools/landing.mjs build|dev'); process.exit(2)
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  const cmd = process.argv[2]
+  if (cmd === 'build') build()
+  else if (cmd === 'dev') dev()
+  else { console.error('usage: node tools/landing.mjs build|dev'); process.exit(2) }
 }

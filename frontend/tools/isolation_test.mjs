@@ -104,6 +104,13 @@ for (const [method, p, body] of WRITES) {
 }
 ok(outbound.every((o) => o.method === 'GET' && o.url.startsWith(ORIGIN + '/data/')),
   `the worker itself only ever read its own /data/ files (${outbound.length} reads, 0 writes, 0 other hosts)`)
+{
+  // respondWith not called = the browser sends it on as normal
+  let called = false
+  listeners.fetch({ request: new Request(ORIGIN + '/api/leads', { method: 'POST', body: '{}' }),
+    respondWith: () => { called = true }, waitUntil: () => {} })
+  ok(!called, 'POST /api/leads is left alone by the worker (the landing forms reach the real lead API on a one-domain site)')
+}
 const loginReply = await (await ask('POST', '/api/auth/login', { username: 'admin', password: 'x' })).json()
 ok(loginReply.token === 'demo', 'demo sign-in is the demo account, whatever is typed (token "demo", never a production token)')
 
@@ -149,6 +156,18 @@ const lcon = connect(cspOf(landingHtml))
 ok(lcon.startsWith("'self'") && !/app\.warexx|:8000/.test(lcon), `landing page: connect-src ${lcon}`)
 const fe = (landingHtml.match(/\n {2}formEndpoint: "([^"]*)"/) || [])[1]
 ok(fe !== undefined && !/app\.warexx|:8000/.test(fe), `landing forms go to the landing's own lead API (${fe}), not the app`)
+
+// the one-domain site (npm run build:site), when built
+const SITE = path.join(FRONTEND, 'dist', 'site')
+if (existsSync(path.join(SITE, 'index.html'))) {
+  ok(connect(cspOf(readFileSync(path.join(SITE, 'demo', 'index.html'), 'utf8'))) === "'self'", "site: /demo/ page connect-src 'self'")
+  ok(connect(cspOf(readFileSync(path.join(SITE, 'm', 'index.html'), 'utf8'))) === "'self'", "site: /m/ phone app connect-src 'self'")
+  const siteHtml = readFileSync(path.join(SITE, 'index.html'), 'utf8')
+  const demoUrl = (siteHtml.match(/\n {2}demoAppUrl: "([^"]*)"/) || [])[1]
+  ok(demoUrl === '/demo/', `site: "Book a demo" opens this site's own /demo/ (${demoUrl})`)
+  ok(['sw.js', 'data/manifest.json', 'demo/assets'].every((f) => existsSync(path.join(SITE, f))),
+    'site: the worker and dataset at the root, the demo bundle under /demo/')
+} else console.log('  skip  one-domain site (npm run build:site)')
 
 // ---------------------------------------------------------------------------
 // 4. no secrets in what landing-demo publishes, or in its source

@@ -55,6 +55,7 @@ cd landing-demo/frontend && npm ci
 | `npm run build` | `dist/landing/` and `dist/demo/` |
 | `npm run build:landing` / `npm run build:demo` | one of them |
 | `npm run preview:demo` | serve `dist/demo` on :8002 |
+| `npm run build:site` / `npm run preview:site` | landing page + demo as one site (`/` and `/demo/`) → `dist/site`, served on :8030 |
 | `npm test` | isolation + data + secrets checks on the builds |
 | `node tools/demo_browser_test.mjs http://localhost:8002/` | the demo in headless Edge/Chrome (`PROD_URL=…` also proves production is unreachable) |
 
@@ -126,15 +127,30 @@ seeder refuses to run unless its database is a SQLite file in a folder named
 
 ## Deploy
 
-**Landing page** (Vercel): new project, **Root Directory `landing-demo`**.
-`vercel.json` there builds `frontend/dist/landing` and deploys `api/leads.py`
-as the `/api/leads` function. Set the `LEAD_*` variables in the project's
-environment settings. Domain: `warexx.aavoraa.com`.
+**One domain, landing page + demo (the default, no custom domain needed)**:
+on Vercel, create one project with **Root Directory `landing-demo`** (or the
+repository root, if `landing-demo` is its own repository). `vercel.json` runs
+`npm run build:site` and serves:
 
-**Demo** (Vercel): a second project, **Root Directory `landing-demo/frontend`**
-(keep "Include files outside the root directory" on, because the build reads
-`../demo-data`). `frontend/vercel.json` builds `dist/demo` and sets the CSP and
-service-worker headers. Domain: `demo.warexx.aavoraa.com`.
+| Address | What |
+|---|---|
+| `https://<project>.vercel.app/` | the landing page |
+| `https://<project>.vercel.app/demo/` | the interactive demo ("Book a demo" opens it) |
+| `https://<project>.vercel.app/api/leads` | the lead form's email function (`api/leads.py`) |
+
+Set the `LEAD_*` variables in the project's environment settings. The demo's
+service worker, dataset and phone app sit at `/sw.js`, `/data/` and `/m/`,
+because the app calls `/api/...` from the root of the domain. The worker
+leaves `/api/leads` alone, so the forms still reach the real function. Try it
+locally with `npm run build:site && npm run preview:site` (http://localhost:8030,
+with `python ../lead-api/server.py` running for the forms).
+
+**Later, the demo on its own domain** (`demo.warexx.aavoraa.com`): add a
+second Vercel project with **Root Directory `landing-demo/frontend`** (keep
+"Include files outside the root directory" on, because the build reads
+`../demo-data`). `frontend/vercel.json` builds `dist/demo` with the CSP and
+service-worker headers. Then set `VITE_DEMO_URL=https://demo.warexx.aavoraa.com/`
+on the landing project and redeploy it.
 
 **Any other static host** (Netlify, Cloudflare Pages, S3 + CloudFront, nginx):
 `npm ci && npm run build`, then publish `frontend/dist/landing` and

@@ -34,7 +34,11 @@ const manifest = () => (manifestP ||= fetch(DATA + 'manifest.json', { cache: 'no
 const push = (map, k, v) => { const a = map.get(k); a ? a.push(v) : map.set(k, [v]) }
 const shape = (p) => p.replace(/\/\d+(?=\/|$)/g, '/:n').replace(/\/[0-9a-f]{8,}(?=\/|$)/gi, '/:h')
 
-const ours = (url) => url.origin === self.location.origin &&
+// /api/leads is the one real endpoint on a site that serves the landing page and
+// the demo together (npm run build:site): the landing page's forms must reach it.
+// It only sends an email; nothing of the demo goes there.
+const LEADS = '/api/leads'
+const ours = (url) => url.origin === self.location.origin && url.pathname !== LEADS &&
   (url.pathname.startsWith('/api/') || url.pathname === '/api' || url.pathname.startsWith('/pos'))
 
 // The phone app (/m) is real files — the WAREXX phone page, copied in at build

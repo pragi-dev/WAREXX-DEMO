@@ -134,11 +134,31 @@ if (PROD) {
 }
 
 // the phone app
-const phone = await open(BASE + 'm/', `document.body && document.body.innerText.length > 50`)
+// one-domain site (npm run build:site): the demo at /demo/, the landing page at
+// "/". With the demo's worker now in charge of the whole domain, the landing
+// forms must still reach the real /api/leads, not the worker.
+// (the landing page's own images and scripts are not the demo's: the host check
+// below counts only what the demo pages sent)
+let demoRequests = null
+if (new URL(BASE).pathname !== '/') {
+  demoRequests = requests.length
+  await open(ORIGIN + '/', `document.body && document.body.innerText.length > 200`)
+  const lead = await evaluate(`fetch('/api/leads', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Browser Test', email: 'browser-test@example.com', type: 'contact' }) })
+    .then(async r => r.status + ' demo=' + r.headers.get('X-Warexx-Demo') + ' ' + (await r.text()))`)
+  ok(/^200 demo=null/.test(String(lead)), `the landing page's lead form reaches the real /api/leads, past the demo's worker (${lead})`)
+  const landing = await text()
+  ok(/Book a demo/i.test(landing), 'the landing page still loads at "/" with the demo installed on the same domain')
+}
+
+const phoneFrom = requests.length
+const phone = await open(ORIGIN + '/m/', `document.body && document.body.innerText.length > 50`)
 ok(phone, 'the phone app (/m) opens')
 await shot('03-phone')
 
-const hosts = [...new Set(requests.map((r) => { try { return new URL(r.url).origin } catch { return r.url.slice(0, 20) } }))]
+const demoReqs = demoRequests === null ? requests
+  : requests.slice(0, demoRequests).concat(requests.slice(phoneFrom))
+const hosts = [...new Set(demoReqs.map((r) => { try { return new URL(r.url).origin } catch { return r.url.slice(0, 20) } }))]
 const allowed = (h) => h === ORIGIN || /fonts\.(googleapis|gstatic)\.com$/.test(new URL(h).hostname) || /^(data|blob|chrome|null)/.test(h)
 const strays = hosts.filter((h) => { try { return !allowed(h) } catch { return false } })
   .filter((h) => !PROD || h !== new URL(PROD).origin)        // the attempts above, which were refused
