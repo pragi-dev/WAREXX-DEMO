@@ -16790,39 +16790,21 @@ function NavSidebar({ ws, items, home, tab, go, badges = {}, wsOk = () => true, 
     <aside className={'wxnav' + (drawer ? ' drawer' : ' fixed') + (mini ? ' folded' : '')}
       role={drawer ? 'dialog' : undefined} aria-modal={drawer ? 'true' : undefined}
       aria-label={drawer ? 'Navigation menu' : undefined}>
-      {/* THE RAIL — which altitude you are working at: the company, one
-          warehouse, or its store. Always the same three doors, in the same order. */}
-      <div className="wxnav-rail">
-        <button className="wxnav-mark" onClick={() => home && pick(home.key)} title="WAREXX — dashboard">
-          <BrandMark />
-        </button>
-        <div className="wxnav-ws" role="radiogroup" aria-label="Workspace">
-          {wsList.map(([k, ico, label, hint]) => (
-            <button key={k} role="radio" aria-checked={wsShown === k} className={'wxnav-wsbtn' + (wsShown === k ? ' on' : '')}
-              title={`${label} — ${hint}`} onClick={() => { goWs(k); if (drawer) onClose() }}>
-              <Icon name={ico} size={19} /><span>{label}</span>
-            </button>
-          ))}
-        </div>
-        <span className="spacer" />
-        {onAsk && (
-          <button className="wxnav-railbtn ask" onClick={onAsk} title="Ask WAREXX — sales, stock, bills, by voice too">
-            <Icon name="sparkle" size={18} /></button>
-        )}
-        {drawer ? (
-          <button className="wxnav-railbtn" onClick={onClose} aria-label="Close navigation menu"><Icon name="x" size={18} /></button>
-        ) : (
-          <button className="wxnav-railbtn" onClick={toggleWide} aria-expanded={wide}
-            title={wide ? 'Fold the menu to icons' : 'Show the full menu'}
-            aria-label={wide ? 'Fold the menu' : 'Show the full menu'}>
-            <Icon name={wide ? 'panelClose' : 'panelOpen'} size={18} /></button>
-        )}
-      </div>
-
-      {/* THE PANEL — the screens of that altitude, grouped the way work flows */}
+      {/* THE PANEL — the screens of the workspace you are in (Central, Warehouse
+          or Store, switched from the header), grouped the way work flows */}
       <div className="wxnav-panel">
         <div className="wxnav-head">
-          {!mini && <span className="wxnav-word"><Wordmark tagline onLight /></span>}
+          <div className="wxnav-headrow">
+            {!mini && <span className="wxnav-word"><Wordmark tagline onLight /></span>}
+            {drawer ? (
+              <button className="wxnav-fold" onClick={onClose} aria-label="Close navigation menu"><Icon name="x" size={18} /></button>
+            ) : (
+              <button className="wxnav-fold" onClick={toggleWide} aria-expanded={wide}
+                title={wide ? 'Fold the menu to icons' : 'Show the full menu'}
+                aria-label={wide ? 'Fold the menu' : 'Show the full menu'}>
+                <Icon name={wide ? 'panelClose' : 'panelOpen'} size={18} /></button>
+            )}
+          </div>
           {place && (
             <button className="wxnav-place" onClick={onPlace} title={mini ? `${place.kind} · ${place.label}` : 'Switch warehouse or workspace'}
               aria-haspopup="menu">
@@ -19070,6 +19052,17 @@ export default function App() {
           title={backTarget ? `Back to ${labelFor(backTarget)} (Alt+←)` : 'Nothing to go back to yet'}
           aria-label={backTarget ? `Back to ${labelFor(backTarget)}` : 'Back'}>
           <Icon name="arrowLeft" size={16} /></button>
+        {/* WHICH WORKSPACE — the company, one warehouse, or its store. Always the
+            same three, in the same order. */}
+        <div className="wx-wsseg" role="radiogroup" aria-label="Workspace">
+          {wsList.map(([k, ico, label, hint]) => (
+            <button key={k} role="radio" aria-checked={wsShown === k}
+              className={'wx-wsseg-btn' + (wsShown === k ? ' on' : '')}
+              title={`${label} — ${hint}`} onClick={() => { setMenu(null); goWs(k) }}>
+              <Icon name={ico} size={15} /><span>{label}</span>
+            </button>
+          ))}
+        </div>
         {/* WHERE YOU ARE — workspace, module, screen. A person who has forgotten
             which warehouse they are inside will post a receipt into the wrong
             building, so the place leads the trail on every screen. */}

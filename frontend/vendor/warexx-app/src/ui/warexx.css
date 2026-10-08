@@ -43,7 +43,9 @@
   --x-ring: 0 0 0 3px rgba(217,96,27,.18);
   --x-ease: cubic-bezier(.2,.7,.2,1);
 
-  --x-rail: 64px;
+  /* the workspace rail (Central / Warehouse / Store) moved to the header
+     (.wx-wsseg); kept as 0 so every width that adds it stays right */
+  --x-rail: 0px;
   --x-panel: 236px;
   --x-top: 58px;
   --x-gutter: 28px;
@@ -99,6 +101,11 @@ td.num, th.num, .num { font-variant-numeric: tabular-nums; }
 .wxnav-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--x-ivory);
   border-right: 1px solid var(--x-line); }
 .wxnav-head { padding: 18px 14px 10px; display: flex; flex-direction: column; gap: 14px; }
+.wxnav-headrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; }
+.wxnav-fold { width: 34px; height: 34px; flex: 0 0 34px; border-radius: 9px; border: 0; background: transparent; color: #8E8E8E;
+  display: grid; place-items: center; cursor: pointer; transition: background .15s var(--x-ease), color .15s var(--x-ease); }
+.wxnav-fold .ico-svg { color: inherit; }
+.wxnav-fold:hover { background: rgba(255,255,255,.07); color: #fff; }
 .wxnav-word { padding: 0 6px; display: block; }
 .wxnav-word .wordmark { font-size: 15px; display: block; }
 .wxnav-word .wordmark.with-tag .wm-img { height: 1.95em; width: auto; display: block; }
@@ -154,6 +161,7 @@ td.num, th.num, .num { font-variant-numeric: tabular-nums; }
 /* folded: the panel becomes a column of icons */
 .wxnav.folded .wxnav-panel { width: 60px; }
 .wxnav.folded .wxnav-head { padding: 14px 8px 8px; align-items: center; }
+.wxnav.folded .wxnav-headrow { justify-content: center; }
 .wxnav.folded .wxnav-place { width: 40px; height: 40px; padding: 0; justify-content: center; }
 .wxnav.folded .wxnav-list { padding: 4px 8px 14px; }
 .wxnav.folded .navgroup { display: none; }
@@ -180,6 +188,16 @@ td.num, th.num, .num { font-variant-numeric: tabular-nums; }
 .wx-top .th-back:disabled { opacity: .4; cursor: default; }
 .wx-top .th-back .ico-svg { color: inherit; }
 .wx-top-crumbs { min-width: 0; }
+/* the workspace switch: Central / Warehouse / Store */
+.wx-wsseg { display: inline-flex; align-items: center; gap: 2px; padding: 3px; flex: 0 0 auto; height: 36px;
+  border-radius: 10px; background: var(--x-fill); border: 1px solid var(--x-line); }
+.wx-wsseg-btn { height: 28px; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px; border: 0; border-radius: 7px;
+  background: transparent; color: var(--x-ink-3); font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap;
+  transition: background .15s var(--x-ease), color .15s var(--x-ease), box-shadow .15s var(--x-ease); }
+.wx-wsseg-btn .ico-svg { color: inherit; flex: 0 0 auto; }
+.wx-wsseg-btn:hover { color: var(--x-ink); }
+.wx-wsseg-btn.on { background: var(--x-surface); color: var(--x-ink); box-shadow: 0 0 0 1px var(--x-line), 0 1px 2px rgba(20,20,20,.06); }
+.wx-wsseg-btn.on .ico-svg { color: var(--x-brand); }
 .wx-top .th-search { width: clamp(220px, 26vw, 360px); flex: 0 1 auto; height: 36px; padding: 0 8px 0 12px; display: flex; align-items: center;
   gap: 8px; border-radius: 9px; border: 1px solid var(--x-line); background: var(--x-fill); color: var(--x-ink-4); cursor: text;
   box-shadow: none; transition: border-color .15s var(--x-ease), background .15s var(--x-ease); }
@@ -613,6 +631,8 @@ button.wx-crumb:hover { color: var(--x-ink); text-decoration: underline; text-un
   .wx-askbtn { padding: 0; width: 36px; justify-content: center; }
   .wx-top .th-search .ph, .wx-top .th-search kbd { display: none; }
   .wx-top .th-search { width: 36px; padding: 0; justify-content: center; }
+  .wx-wsseg-btn span { display: none; }
+  .wx-wsseg-btn { padding: 0 9px; }
   .wx-fsec-grid { grid-template-columns: minmax(0, 1fr) 1fr; }
 }
 @media (max-width: 768px) {
