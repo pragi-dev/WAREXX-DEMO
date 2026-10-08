@@ -60,7 +60,7 @@ writeFileSync(path.join(SITE, '_headers'), [
   '/index.html', '  Cache-Control: no-cache',
   '/demo/*', `  Content-Security-Policy: ${DEMO_CSP}`, '  X-Robots-Tag: noindex',
   '/m/*', `  Content-Security-Policy: ${DEMO_CSP}`, '  X-Robots-Tag: noindex',
-  '/demo/assets/*', '  Cache-Control: public, max-age=31536000, immutable',
+  '/demo/assets/*', '  Cache-Control: public, max-age=0, must-revalidate',
   '/sw.js', '  Cache-Control: no-cache', '  Service-Worker-Allowed: /',
   '/data/*', '  Cache-Control: no-cache',
 ].join('\n') + '\n')

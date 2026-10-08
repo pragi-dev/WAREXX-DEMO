@@ -16,20 +16,41 @@
       if (/^\/m(\/|$)/.test(location.pathname)) {
         location.replace('/m/?go=' + encodeURIComponent(location.pathname + location.search))
       }
-      // After a redeploy, a tab (or a cached copy of this page) can still name
-      // the previous build's files, which no longer exist — the page would come
-      // up unstyled or blank. If our own stylesheet or script fails to load,
-      // fetch the current page once, bypassing the cache.
+      // A stylesheet or script of ours that fails to load leaves the demo
+      // unstyled or blank. Two ways it happens:
+      //  - the browser kept a bad copy of the file (e.g. an answer from during a
+      //    redeploy): asking again under a fresh address gets the real file;
+      //  - this page is from before a redeploy and names files that are gone:
+      //    the current page is fetched once, bypassing the cache.
       (function () {
         var KEY = 'wx_demo_reloaded'
         function again() {
           try { if (sessionStorage.getItem(KEY)) return; sessionStorage.setItem(KEY, '1') } catch (e) { return }
           var u = new URL(location.href); u.searchParams.set('v', Date.now()); location.replace(u.href)
         }
+        function refetch(link) {
+          var src = link.href
+          if (src.indexOf('r=') > -1) return again()       // a fresh copy failed too
+          var l = document.createElement('link')
+          l.rel = 'stylesheet'; l.crossOrigin = link.crossOrigin
+          l.href = src + (src.indexOf('?') < 0 ? '?' : '&') + 'r=' + Date.now()
+          link.parentNode.insertBefore(l, link.nextSibling)
+        }
         window.addEventListener('error', function (e) {
           var t = e.target, src = t && (t.href || t.src) || ''
-          if ((t.tagName === 'LINK' || t.tagName === 'SCRIPT') && src.indexOf('/assets/') > -1) again()
+          if (!(t && (t.tagName === 'LINK' || t.tagName === 'SCRIPT') && src.indexOf('/assets/') > -1)) return
+          if (t.tagName === 'LINK') refetch(t); else again()
         }, true)
+        // A stylesheet refused for its type (HTML where CSS was expected) raises
+        // no error event, so check after loading that ours really applied.
+        window.addEventListener('load', function () {
+          var links = document.querySelectorAll('link[rel="stylesheet"][href*="/assets/"]')
+          for (var i = 0; i < links.length; i++) {
+            var ok = false
+            try { ok = !!(links[i].sheet && links[i].sheet.cssRules.length) } catch (e) { ok = true }
+            if (!ok) refetch(links[i])
+          }
+        })
         window.addEventListener('vite:preloadError', function (e) { e.preventDefault(); again() })
         window.addEventListener('load', function () {
           setTimeout(function () { try { sessionStorage.removeItem(KEY) } catch (e) {} }, 10000)
