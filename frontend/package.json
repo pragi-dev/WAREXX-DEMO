@@ -1,0 +1,30 @@
+{
+  "name": "warexx-landing-demo",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "WAREXX public website (landing page) and interactive demo. Static, independent of the production app.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "node tools/landing.mjs dev",
+    "dev:landing": "node tools/landing.mjs dev",
+    "dev:demo": "vite --config vite.demo.config.js",
+    "build": "npm run build:landing && npm run build:demo",
+    "build:landing": "node tools/landing.mjs build",
+    "build:demo": "vite build --config vite.demo.config.js",
+    "preview:demo": "vite preview --config vite.demo.config.js",
+    "sync:app": "node tools/sync-app.mjs",
+    "test": "node tools/isolation_test.mjs",
+    "check": "npm run build && npm test"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11"
+  }
+}

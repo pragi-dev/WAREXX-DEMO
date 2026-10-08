@@ -1,0 +1,3 @@
+# Netlify / Cloudflare Pages: every /m/... address is the phone app's one page.
+/m      /m/index.html  200
+/m/*    /m/index.html  200

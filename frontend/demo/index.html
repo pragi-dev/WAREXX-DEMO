@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#141414" />
+    <meta name="robots" content="noindex" />
+    <!-- Isolation: this page may only talk to its own origin, where sw.js answers
+         with the recorded sample business. Any request to another host — the
+         production API included — is refused by the browser. -->
+    <meta http-equiv="Content-Security-Policy" content="connect-src 'self'; form-action 'self'; base-uri 'self'" />
+    <script>
+      // /m/… is the phone app (m/index.html). A host that answers every unknown
+      // address with this page sends a deep link such as /m/grn/12 here on a
+      // first visit; hand it to the phone app, which opens that screen.
+      if (/^\/m(\/|$)/.test(location.pathname)) {
+        location.replace('/m/?go=' + encodeURIComponent(location.pathname + location.search))
+      }
+    </script>
+    <title>WAREXX · Live demo</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&family=Inter:wght@400;500;600;700&family=Montserrat:wght@500&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      /* shown until the demo's data layer is ready (a second, once) */
+      #boot { position: fixed; inset: 0; display: grid; place-items: center; background: #141414;
+        color: #EDE6DD; font: 500 14px Inter, system-ui, sans-serif; z-index: 9999; }
+      #boot b { display: block; color: #fff; font-size: 18px; margin-bottom: 6px; letter-spacing: .02em; }
+      #boot .bar { width: 160px; height: 3px; margin: 16px auto 0; background: #262626; border-radius: 2px; overflow: hidden; }
+      #boot .bar i { display: block; width: 40%; height: 100%; background: #EE7A1E; animation: slide 1s ease-in-out infinite alternate; }
+      @keyframes slide { from { transform: translateX(-20%); } to { transform: translateX(170%); } }
+    </style>
+  </head>
+  <body>
+    <div id="boot"><div style="text-align:center"><b>WAREXX live demo</b>Loading the sample business…<div class="bar"><i></i></div></div></div>
+    <div id="root"></div>
+    <script type="module" src="./main.jsx"></script>
+  </body>
+</html>

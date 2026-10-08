@@ -1,0 +1,20 @@
+/* The demo's own chrome — one quiet pill, bottom centre, clear of the app's toasts
+   (bottom right) and its action bars. Uses the app's tokens so it matches. */
+.wxdemo-banner { position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 300;
+  display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px);
+  padding: 8px 8px 8px 14px; border-radius: 999px; background: var(--chrome);
+  color: var(--on-chrome-2); font-size: var(--fs-sm); box-shadow: var(--shadow-3);
+  border: 1px solid rgba(238, 122, 30, .35); }
+.wxdemo-banner b { color: #fff; font-weight: 650; }
+.wxdemo-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--orange);
+  box-shadow: 0 0 0 4px rgba(238, 122, 30, .2); flex: 0 0 auto; }
+.wxdemo-banner a { flex: 0 0 auto; padding: 5px 12px; border-radius: 999px; color: #fff;
+  background: var(--grad-brand); font-weight: 600; text-decoration: none; white-space: nowrap; }
+@media (max-width: 720px) {
+  .wxdemo-banner { left: 8px; right: 8px; bottom: 8px; transform: none; font-size: var(--fs-xs); }
+  .wxdemo-banner > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+.wxdemo-reset { flex: 0 0 auto; padding: 5px 10px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .18);
+  background: transparent; color: var(--on-chrome-2); font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.wxdemo-reset:hover { color: #fff; border-color: rgba(255, 255, 255, .35); }

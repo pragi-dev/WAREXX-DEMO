@@ -1,0 +1,23 @@
+# landing-demo works as its own repository too, so it carries its own ignores.
+
+# Secrets: only .env.example is tracked
+.env
+.env.*
+!.env.example
+
+# Dependencies and build output
+node_modules/
+frontend/dist/
+
+# Demo-data authoring scratch: databases, the recorder's browser profile
+demo-data/demo-build/
+**/.record-profile/
+*.orig
+
+# The lead API's locally saved emails (contain visitors' details)
+lead-api/outbox/
+
+__pycache__/
+*.pyc
+.DS_Store
+.vercel/

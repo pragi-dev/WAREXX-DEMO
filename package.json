@@ -1,0 +1,20 @@
+{
+  "name": "warexx-landing-demo-root",
+  "private": true,
+  "description": "WAREXX public website + interactive demo. Convenience scripts; the project itself is frontend/ (see README.md).",
+  "scripts": {
+    "setup": "npm --prefix frontend ci",
+    "dev": "npm --prefix frontend run dev:landing",
+    "dev:landing": "npm --prefix frontend run dev:landing",
+    "dev:demo": "npm --prefix frontend run dev:demo",
+    "lead-api": "python lead-api/server.py",
+    "build": "npm --prefix frontend run build",
+    "build:landing": "npm --prefix frontend run build:landing",
+    "build:demo": "npm --prefix frontend run build:demo",
+    "preview:demo": "npm --prefix frontend run preview:demo",
+    "test": "npm --prefix frontend test",
+    "check": "npm --prefix frontend run check",
+    "sync:app": "npm --prefix frontend run sync:app",
+    "demo-data:rebuild": "node demo-data/tools/build-data.mjs"
+  }
+}

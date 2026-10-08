@@ -1,0 +1,10 @@
+{
+  "copiedAt": "2026-10-08T11:31:58.588Z",
+  "from": [
+    "app/frontend/src",
+    "app/backend/app/mobile"
+  ],
+  "files": 34,
+  "sha256": "67e5f85d1702df068a4f30606f801c82fd324761cf217607b1a6a9f2d7833a92",
+  "note": "Copied by tools/sync-app.mjs. Do not edit here: change app/ and sync again."
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd frontend && npm ci && npm run build:landing",
+  "installCommand": "echo 'dependencies are installed by the build command'",
+  "outputDirectory": "frontend/dist/landing",
+  "framework": null,
+  "functions": {
+    "api/leads.py": {
+      "maxDuration": 30,
+      "includeFiles": "lead-api/**"
+    }
+  },
+  "redirects": [
+    { "source": "/demo", "destination": "https://demo.warexx.aavoraa.com/", "permanent": false },
+    { "source": "/demo/(.*)", "destination": "https://demo.warexx.aavoraa.com/", "permanent": false },
+    { "source": "/app", "destination": "https://app.warexx.aavoraa.com/", "permanent": false }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" }
+      ]
+    },
+    {
+      "source": "/(index.html|landing.html)?",
+      "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+    }
+  ]
+}
