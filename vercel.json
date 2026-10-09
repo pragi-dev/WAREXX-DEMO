@@ -8,6 +8,10 @@
     "api/leads.py": {
       "maxDuration": 30,
       "includeFiles": "lead-api/**"
+    },
+    "api/trial.py": {
+      "maxDuration": 30,
+      "includeFiles": "lead-api/**"
     }
   },
   "redirects": [

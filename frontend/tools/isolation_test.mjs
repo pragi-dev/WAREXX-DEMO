@@ -106,10 +106,16 @@ ok(outbound.every((o) => o.method === 'GET' && o.url.startsWith(ORIGIN + '/data/
   `the worker itself only ever read its own /data/ files (${outbound.length} reads, 0 writes, 0 other hosts)`)
 {
   // respondWith not called = the browser sends it on as normal
-  let called = false
-  listeners.fetch({ request: new Request(ORIGIN + '/api/leads', { method: 'POST', body: '{}' }),
-    respondWith: () => { called = true }, waitUntil: () => {} })
-  ok(!called, 'POST /api/leads is left alone by the worker (the landing forms reach the real lead API on a one-domain site)')
+  for (const p of ['/api/leads', '/api/trial']) {
+    let called = false
+    listeners.fetch({ request: new Request(ORIGIN + p, { method: 'POST', body: '{}' }),
+      respondWith: () => { called = true }, waitUntil: () => {} })
+    ok(!called, `POST ${p} is left alone by the worker (it reaches the site's real endpoint on a one-domain site)`)
+  }
+  let other = false
+  listeners.fetch({ request: new Request(ORIGIN + '/api/trial/x', { method: 'POST', body: '{}' }),
+    respondWith: () => { other = true }, waitUntil: () => {} })
+  ok(other, '…and nothing else under /api is (POST /api/trial/x is still answered by the demo)')
 }
 const loginReply = await (await ask('POST', '/api/auth/login', { username: 'admin', password: 'x' })).json()
 ok(loginReply.token === 'demo', 'demo sign-in is the demo account, whatever is typed (token "demo", never a production token)')

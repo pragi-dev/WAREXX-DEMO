@@ -63,7 +63,7 @@ _recent = defaultdict(deque)
 _lock = threading.Lock()
 
 FIELDS = ("name", "email", "company", "phone", "industry", "interest", "message",
-          "type", "page", "submittedAt")
+          "type", "page", "submittedAt", "slot")
 
 #: What the visitor asked for, as the subject and opening line of their email.
 _ASKED = {
@@ -109,6 +109,7 @@ def parse(raw: bytes) -> dict:
     lead["name"] = (lead["name"] or "").strip()
     lead["email"] = (lead["email"] or "").strip()
     lead["type"] = lead["type"] or "contact"
+    lead["trial_window"] = None        # set by the server when a demo slot is booked, never by the form
     if not lead["name"] or not _EMAIL.match(lead["email"]):
         raise LeadError(422, "A name and a valid email are needed")
     return lead
@@ -146,19 +147,25 @@ def _message(to, subject, text_body, html_body):
 def _visitor_email(lead):
     subject, opening = _ASKED.get(lead["type"], _ASKED["contact"])
     first = (lead["name"].split() or ["there"])[0]
+    slot = lead.get("trial_window")
+    slot_text = (f"Your demo slot: {slot}. Sign up with this email address and a password of your "
+                 "choice; it opens the WAREXX demo for those two hours.\n\n") if slot else ""
     text_body = (f"Hi {first},\n\n{opening}, and someone from our team will get back to you "
-                 "shortly.\n\nIf there’s anything you’d like to add, just reply to this email.\n\n"
+                 f"shortly.\n\n{slot_text}If there’s anything you’d like to add, just reply to this email.\n\n"
                  "Team WAREXX\n")
     body = (f"<p>Hi {html.escape(first)},</p>"
             f"<p>{html.escape(opening)}, and someone from our team will get back to you shortly.</p>"
-            "<p>If there’s anything you’d like to add, just reply to this email.</p>")
+            + (f"<p><b>Your demo slot: {html.escape(slot)}.</b> Sign up with this email address and a "
+               "password of your choice; it opens the WAREXX demo for those two hours.</p>" if slot else "")
+            + "<p>If there’s anything you’d like to add, just reply to this email.</p>")
     return _message(lead["email"], subject, text_body, _wrap(body))
 
 
 def _notify_email(lead):
     rows = [("Form", lead["type"]), ("Name", lead["name"]), ("Email", lead["email"]),
             ("Phone", lead["phone"]), ("Company", lead["company"]), ("Industry", lead["industry"]),
-            ("Interested in", lead["interest"]), ("Message", lead["message"]),
+            ("Interested in", lead["interest"]), ("Demo slot", lead.get("trial_window")),
+            ("Message", lead["message"]),
             ("Submitted", lead["submittedAt"])]
     table = "".join(f'<tr><td style="padding:3px 16px 3px 0;color:#6E675E">{k}</td>'
                     f"<td>{html.escape(str(v or '—'))}</td></tr>" for k, v in rows)

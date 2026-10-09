@@ -37,7 +37,11 @@ if (/^https?:\/\//i.test(cfg.demoAppUrl)) {
 rmSync(TMP, { recursive: true, force: true })
 const vite = path.join(FRONTEND, 'node_modules', 'vite', 'bin', 'vite.js')
 const r = spawnSync(process.execPath, [vite, 'build', '--config', 'vite.demo.config.js'], {
-  cwd: FRONTEND, stdio: 'inherit', env: { ...process.env, DEMO_BASE: '/demo/', DEMO_OUT: TMP },
+  cwd: FRONTEND, stdio: 'inherit', env: { ...process.env, DEMO_BASE: '/demo/', DEMO_OUT: TMP,
+    // the demo on this site: its sign-up for a booked slot (demo/trial.jsx) talks
+    // to this site's /api/trial, and its links back go to this site's landing page
+    VITE_DEMO_TRIAL: process.env.VITE_DEMO_TRIAL ?? '1',
+    VITE_LANDING_URL: process.env.VITE_LANDING_URL ?? '/' },
 })
 if (r.status !== 0) process.exit(r.status || 1)
 

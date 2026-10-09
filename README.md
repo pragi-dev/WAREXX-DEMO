@@ -103,6 +103,31 @@ request the UI makes to `/api` or `/pos` is answered by the worker from
 Every demo page carries `Content-Security-Policy: connect-src 'self'`, so the
 browser itself refuses a request to any other host, including the production API.
 
+### Booked slots: sign-up and a two-hour window
+
+On the one-domain site (`npm run build:site`) the demo is behind a sign-up:
+
+1. The landing page's **contact** and **Book a demo** forms ask for a demo
+   time slot: "Start now", or 10:00 / 12:00 / 15:00 / 17:00 IST over the next
+   week.
+2. Sending the form opens **/demo/** on its sign-up step. The email address
+   from the form is already filled in, and the visitor chooses a password.
+3. The demo opens for **two hours from the start of the slot**. A booking for
+   later waits on a countdown and opens by itself.
+4. When the two hours are over, a **subscribe** card covers the demo and the
+   password no longer works.
+
+The server (`lead-api/trial.py`, `api/trial.py` on Vercel) issues and checks
+every pass against its own clock. The passes are signed with
+`DEMO_TRIAL_SECRET`, so a visitor cannot extend their window. There is no
+database: a visitor's account lives in their browser, and on another device
+they book again. Set **`DEMO_TRIAL_SECRET`** in the Vercel project (see
+`.env.example`). Until it is set, the forms send as before and the demo opens
+without a sign-up.
+
+Tests: `python lead-api/trial_test.py` and, against a running site with a
+one-minute window (`DEMO_TRIAL_MINUTES=1`), `node tools/trial_browser_test.mjs`.
+
 ### Refreshing the app snapshot
 
 `vendor/warexx-app` is a copy, so the demo cannot be broken by a change in

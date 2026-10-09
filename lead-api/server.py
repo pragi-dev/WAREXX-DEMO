@@ -17,6 +17,12 @@ import lead_mail  # noqa: E402
 
 
 def main():
+    # Demo sign-up passes need a signing secret. Locally a temporary one is made
+    # per run (passes from an earlier run stop working); a deployment sets its own.
+    if not os.environ.get("DEMO_TRIAL_SECRET"):
+        import secrets
+        os.environ["DEMO_TRIAL_SECRET"] = secrets.token_urlsafe(32)
+        print("[lead api] DEMO_TRIAL_SECRET not set: using a temporary one for this run", flush=True)
     host = os.environ.get("LEAD_API_HOST", "127.0.0.1")
     port = int(os.environ.get("LEAD_API_PORT", "8003"))
     srv = ThreadingHTTPServer((host, port), LeadHandler)

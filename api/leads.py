@@ -14,3 +14,4 @@ from http_handler import LeadHandler  # noqa: E402
 
 class handler(LeadHandler):  # Vercel's Python runtime serves the class called `handler`
     send_in_background = False
+    only = "leads"

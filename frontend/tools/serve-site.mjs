@@ -22,8 +22,8 @@ if (!existsSync(path.join(SITE, 'index.html'))) { console.error('dist/site is mi
 
 createServer((req, res) => {
   const url = new URL(req.url, 'http://x')
-  if (url.pathname === '/api/leads') {
-    const fwd = httpRequest({ hostname: leadApi.hostname, port: leadApi.port, path: '/api/leads',
+  if (url.pathname === '/api/leads' || url.pathname === '/api/trial') {
+    const fwd = httpRequest({ hostname: leadApi.hostname, port: leadApi.port, path: url.pathname,
       method: req.method, headers: { ...req.headers, host: leadApi.host } }, (r) => { res.writeHead(r.statusCode, r.headers); r.pipe(res) })
     fwd.on('error', () => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end('{"detail":"lead API not running"}') })
     return req.pipe(fwd)

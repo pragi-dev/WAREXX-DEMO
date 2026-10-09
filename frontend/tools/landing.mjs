@@ -121,8 +121,8 @@ function dev() {
   const leadApi = new URL(process.env.LEAD_API_URL || 'http://127.0.0.1:8003')
   createServer((req, res) => {
     const url = new URL(req.url, 'http://x')
-    if (url.pathname === '/api/leads') {
-      const fwd = httpRequest({ hostname: leadApi.hostname, port: leadApi.port, path: '/api/leads',
+    if (url.pathname === '/api/leads' || url.pathname === '/api/trial') {
+      const fwd = httpRequest({ hostname: leadApi.hostname, port: leadApi.port, path: url.pathname,
         method: req.method, headers: { ...req.headers, host: leadApi.host } }, (r) => {
         res.writeHead(r.statusCode, r.headers); r.pipe(res)
       })

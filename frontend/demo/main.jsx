@@ -11,6 +11,7 @@ import '../vendor/warexx-app/src/design-system.css'
 import '../vendor/warexx-app/src/ui/warexx.css'
 import '../vendor/warexx-app/src/ui/screens.css'
 import './demo.css'
+import { TRIAL_ON, TrialGate, TrialWatch, checkSession, takeTicketFromUrl } from './trial.jsx'
 
 // The public landing page, for "Talk to us" when the visitor did not arrive from
 // it. Public, build-time, never a secret (see ../.env.example).
@@ -77,12 +78,27 @@ function Banner() {
 }
 
 ready().then(async () => {
+  const root = ReactDOM.createRoot(document.getElementById('root'))
+  // A booked slot (trial.jsx, VITE_DEMO_TRIAL=1): sign up or sign in first, and
+  // only inside the slot's two hours. Without it the demo opens straight away.
+  let open = null
+  if (TRIAL_ON) {
+    takeTicketFromUrl()
+    open = await checkSession()
+    if (open.state === 'unconfigured') open = null
+    else if (open.state !== 'open') {
+      document.getElementById('boot')?.remove()
+      document.body.classList.add('wxtrial-gated')
+      open = await new Promise((resolve) => root.render(<TrialGate initial={open} onOpen={resolve} />))
+      document.body.classList.remove('wxtrial-gated')
+    }
+  }
   signIn()
   const { default: App } = await import('../vendor/warexx-app/src/App.jsx')
   document.getElementById('boot')?.remove()
   document.body.classList.add('wxdemo')
-  ReactDOM.createRoot(document.getElementById('root')).render(
-    <React.StrictMode><App /><Banner /></React.StrictMode>)
+  root.render(
+    <React.StrictMode><App /><Banner />{open && <TrialWatch end={open.end} skew={open.skew} />}</React.StrictMode>)
 }).catch((e) => {
   const b = document.getElementById('boot')
   if (b) b.innerHTML = `<div style="text-align:center;max-width:420px;padding:24px"><b>The demo could not start</b>${String(e.message || e)}</div>`
