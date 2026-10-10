@@ -162,10 +162,64 @@ export function merge(html) {
     window.dispatchEvent(new CustomEvent('warexx:lead', { detail: payload }));
     if (!CFG.formEndpoint) { await wait(450); return {}; }
     const res = await fetch(CFG.formEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) {
+      // the server's answer goes with the error: a 422 names the fields to fix
+      let body = {}; try { body = await res.json(); } catch (e) {}
+      throw Object.assign(new Error('HTTP ' + res.status), { status: res.status, body });
+    }
     try { return await res.json(); } catch (e) { return {}; }
   }
+
+  // After "Get demo trial": the confirmation, shown in the form's own "done"
+  // place. The form's own done text is kept underneath (other forms use it)
+  // and comes back when the form is reset.
+  function showTrialReady(form, r, email) {
+    const done = $('.lead-form__done', form); if (!done) return;
+    $('.trial-ok', done)?.remove();
+    const t = r && r.trial && r.trial.ticket ? r.trial : null;
+    const later = t && t.start * 1000 > Date.now() + 60000;
+    const mins = (t && t.minutes) || 120;
+    const len = mins % 60 === 0 && mins >= 120 ? (mins / 60) + ' hours' : mins + ' minutes';
+    const msg = !t ? 'Thank you — we’ve received your request.'
+      : r.email_sent ? \`We’ve sent your access link and login instructions to <b>\${esc(email)}</b>.\`
+      : \`We couldn’t send the email to <b>\${esc(email)}</b> just now. You can open the demo below, or send the email again.\`;
+    const box = document.createElement('div');
+    box.className = 'trial-ok';
+    box.setAttribute('role', 'status');
+    box.innerHTML = \`
+      <span class="trial-ok__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.2 4.2L19 7"/></svg></span>
+      <p class="display trial-ok__title">\${later ? 'Your Demo Is Booked!' : 'Your Demo Is Ready!'}</p>
+      <p class="mute">\${msg}</p>
+      \${t ? \`<p class="trial-ok__slot">Your \${len} of WAREXX: <b>\${esc(t.window || '')}</b></p>\` : ''}
+      <button class="btn btn--primary" type="button" data-trial-open>Open Demo Software</button>
+      <p class="mute trial-ok__tour">After you sign in, a short guided tour shows you around — you can skip it at any time.</p>
+      \${t ? '<p class="trial-ok__again"><button type="button" data-trial-resend>Send the email again</button> <span data-trial-msg aria-live="polite"></span></p>' : ''}\`;
+    done.classList.add('has-trial');
+    done.appendChild(box);
+    done.hidden = false; form.classList.add('is-done');
+    $('[data-trial-open]', box).addEventListener('click', () => (t ? openSignup(t) : openDemo()));
+    const again = $('[data-trial-resend]', box);
+    if (again) again.addEventListener('click', async () => {
+      const note = $('[data-trial-msg]', box);
+      again.disabled = true; note.textContent = 'Sending…';
+      try {
+        const res = await fetch('/api/trial', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'resend', ticket: t.ticket }) });
+        const j = await res.json().catch(() => ({}));
+        note.textContent = res.ok && j.email_sent ? 'Sent — check your inbox.'
+          : res.status === 429 ? 'Too many emails — please wait a while and try again.'
+          : 'We couldn’t send it just now. Please try again shortly.';
+      } catch (e) { note.textContent = 'We couldn’t send it just now. Please try again shortly.'; }
+      setTimeout(() => { again.disabled = false; }, 30000);
+    });
+    setTimeout(() => $('[data-trial-open]', box)?.focus(), 60);
+  }
 `, 'sendLead')
+
+  // a reset form (the pop-up opened again, for any form) loses the confirmation
+  html = edit(html, "    const done = $('.lead-form__done', form); if (done) done.hidden = true;\n",
+    "    const done = $('.lead-form__done', form); if (done) done.hidden = true;\n"
+    + "    if (done) { done.classList.remove('has-trial'); $('.trial-ok', done)?.remove(); }\n", 'resetForm: confirmation')
 
   html = edit(html,
     `      payload.submittedAt = new Date().toISOString();
@@ -177,14 +231,28 @@ export function merge(html) {
       if (payload.improve && !payload.interest) payload.interest = payload.improve;
       try {
         if (payload.type === 'demo') {
-          // A booked slot goes on to sign-up; otherwise (the trial not set up on
-          // the server) the demo opens — a lead that fails to send must not keep
-          // anyone out of the demo.
-          let r = {};
-          try { r = (await Promise.race([sendLead(payload), wait(8000)])) || {}; } catch (e) {}
-          form.classList.add('is-done');
-          const done = $('.lead-form__done', form); if (done) done.hidden = false;
-          if (r.trial && r.trial.ticket) openSignup(r.trial); else openDemo();
+          // The free trial: the server checks the form, issues the trial and
+          // emails the access link; the confirmation then offers the demo. The
+          // button says what is happening, and stays disabled, until it answers.
+          const label = btn.innerHTML;
+          btn.innerHTML = 'Setting up your trial…'; btn.setAttribute('aria-busy', 'true');
+          const restore = () => { btn.innerHTML = label; btn.removeAttribute('aria-busy'); btn.disabled = false; };
+          let r;
+          try {
+            r = await Promise.race([sendLead(payload),
+              wait(25000).then(() => { throw Object.assign(new Error('timeout'), { status: 0 }); })]);
+          } catch (ex) {
+            const fields = (ex.body && ex.body.fields) || {};
+            Object.keys(fields).forEach(n => { const el = form.elements[n]; el && el.closest('.fld')?.classList.add('err'); });
+            err.textContent = ex.status === 422 ? (Object.values(fields)[0] || 'Please check the highlighted details.')
+              : ex.status === 429 ? 'Too many requests — please try again in a little while.'
+              : 'We couldn’t set up your trial just now. Please try again.';
+            err.hidden = false; restore();
+            $('.fld.err input, .fld.err select', form)?.focus();
+            return;
+          }
+          restore();
+          showTrialReady(form, r || {}, payload.email);
           return;
         }
         await sendLead(payload);
@@ -215,6 +283,18 @@ const PRICING_CSS = `
 .pmore__item p { margin: 0; color: var(--mute); }
 .pmore__cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
 @media (max-width: 899px) { .pmore { grid-template-columns: minmax(0, 1fr); } }
+/* the free-trial confirmation ("Your Demo Is Ready!"), in a form's done place */
+.lead-form__done.has-trial > :not(.trial-ok) { display: none !important; }
+.trial-ok { display: grid; gap: 10px; justify-items: start; }
+.trial-ok__icon { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: rgba(238, 122, 30, .14); }
+.trial-ok__icon svg { width: 22px; height: 22px; fill: none; stroke: #EE7A1E; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.trial-ok__title { font-size: clamp(26px, 2.6vw, 32px); margin: 2px 0 0; }
+.trial-ok p { margin: 0; }
+.trial-ok__slot { font-size: 14px; }
+.trial-ok__tour { font-size: 13px; }
+.trial-ok__again { font-size: 13px; color: var(--mute); }
+.trial-ok__again button { border: 0; background: none; padding: 0; color: inherit; font: inherit; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.trial-ok__again button:disabled { opacity: .55; cursor: default; }
 `
 
 export function mergePricing(html) {

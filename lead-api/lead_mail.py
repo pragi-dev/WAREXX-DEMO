@@ -21,6 +21,8 @@ Settings — SERVER-SIDE environment variables only (never VITE_*, never in the 
     LEAD_MAIL_DIR       where console mode saves .eml files (default lead-api/outbox)
     LEAD_ALLOWED_ORIGINS  comma-separated origins allowed to POST cross-origin
                           (only needed when the API is on another host than the page)
+    LEAD_SUPPORT_EMAIL  the support address in the free-trial email (default: the From address)
+    LEAD_COMPANY_NAME   who signs the free-trial email (default: WAREXX)
 """
 import datetime as dt
 import html
@@ -51,6 +53,8 @@ SMTP_USER = _env("LEAD_SMTP_USER", parseaddr(MAIL_FROM)[1])
 SMTP_PASSWORD = _env("LEAD_SMTP_PASSWORD", "")
 MAIL_DIR = _env("LEAD_MAIL_DIR", os.path.join(os.path.dirname(os.path.abspath(__file__)), "outbox"))
 ALLOWED_ORIGINS = {o.strip().rstrip("/") for o in _env("LEAD_ALLOWED_ORIGINS").split(",") if o.strip()}
+SUPPORT_EMAIL = _env("LEAD_SUPPORT_EMAIL", parseaddr(MAIL_FROM)[1])
+COMPANY_NAME = _env("LEAD_COMPANY_NAME", "WAREXX")
 
 #: Sends per address per hour. The endpoint is public and emails whatever
 #: address it is given, so this is what stops it being used to spam someone.
@@ -78,9 +82,32 @@ _ASKED = {
 
 
 class LeadError(Exception):
-    def __init__(self, status, detail):
+    def __init__(self, status, detail, fields=None):
         super().__init__(detail)
-        self.status, self.detail = status, detail
+        self.status, self.detail, self.fields = status, detail, fields or {}
+
+
+_PHONE = re.compile(r"^\+?[\d\s().-]{7,20}$")
+
+
+def _check_trial(lead):
+    """A free-trial request needs everything its form asks for — checked here
+    as well as in the page, since anyone can POST to this endpoint. Answers the
+    fields that are wrong, by name, so the page can mark them."""
+    bad = {}
+    if not lead["name"] or len(lead["name"]) > 120:
+        bad["name"] = "Enter your name"
+    if not _EMAIL.match(lead["email"]) or len(lead["email"]) > 254:
+        bad["email"] = "Enter a valid work email"
+    if not (lead.get("company") or "").strip():
+        bad["company"] = "Enter your company name"
+    digits = re.sub(r"\D", "", lead.get("phone") or "")
+    if not _PHONE.match((lead.get("phone") or "").strip()) or not 7 <= len(digits) <= 15:
+        bad["phone"] = "Enter a valid phone number"
+    if not (lead.get("slot") or "").strip():
+        bad["slot"] = "Choose a demo time"
+    if bad:
+        raise LeadError(422, "Please check the highlighted details", fields=bad)
 
 
 def _allowed(key):
@@ -110,7 +137,9 @@ def parse(raw: bytes) -> dict:
     lead["email"] = (lead["email"] or "").strip()
     lead["type"] = lead["type"] or "contact"
     lead["trial_window"] = None        # set by the server when a demo slot is booked, never by the form
-    if not lead["name"] or not _EMAIL.match(lead["email"]):
+    if lead["type"] == "demo":
+        _check_trial(lead)
+    elif not lead["name"] or not _EMAIL.match(lead["email"]):
         raise LeadError(422, "A name and a valid email are needed")
     return lead
 
@@ -159,6 +188,75 @@ def _visitor_email(lead):
                "password of your choice; it opens the WAREXX demo for those two hours.</p>" if slot else "")
             + "<p>If there’s anything you’d like to add, just reply to this email.</p>")
     return _message(lead["email"], subject, text_body, _wrap(body))
+
+
+def _button(url, label):
+    return (f'<p style="margin:22px 0"><a href="{html.escape(url)}" style="display:inline-block;padding:13px 24px;'
+            'border-radius:10px;background:#D9601B;color:#fff;font-weight:600;text-decoration:none">'
+            f'{html.escape(label)}</a></p>')
+
+
+def trial_email(lead, access):
+    """The free-trial email: the demo is ready, how to get in, for how long.
+    `access` is trial.access_url(...) — the demo with the visitor's own expiring
+    sign-up pass. No password is sent: the visitor chooses one on the page the
+    button opens."""
+    first = (lead["name"].split() or ["there"])[0]
+    window, minutes = lead.get("trial_window") or "", int(lead.get("trial_minutes") or 120)
+    hours = f"{minutes // 60} hours" if minutes % 60 == 0 and minutes >= 120 else f"{minutes} minutes"
+    demo_home = access.split("#")[0]
+    subject = "Your Free Trial Is Ready – Access Your Demo"
+    login = (f"Click “Access Your Free Trial”, then create a password of your choice on the page that opens. "
+             f"From then on, sign in at {demo_home} with {lead['email']} and that password. We never send "
+             "passwords by email. The link is personal to you — please don’t forward it.")
+    text_body = (
+        f"Hi {first},\n\nThank you for your interest in {COMPANY_NAME}!\n\n"
+        "Your free trial account is ready. You can now explore the platform and experience its features "
+        "through your personalised demo access.\n\n"
+        f"Access your free trial: {access}\n\n"
+        f"Demo URL: {demo_home}\nLogin email: {lead['email']}\n"
+        f"Your trial: {hours} — {window}\n\n"
+        f"How to sign in: {login}\n\n"
+        "Once you’re in, a short interactive tour shows you the key features. You can skip it at any time "
+        "and explore on your own.\n\n"
+        f"If you need assistance, please contact {SUPPORT_EMAIL}.\n\nBest regards,\n{COMPANY_NAME} Team\n")
+    rows = [("Demo URL", f'<a href="{html.escape(demo_home)}">{html.escape(demo_home)}</a>'),
+            ("Login email", html.escape(lead["email"])),
+            ("Your trial", html.escape(f"{hours} — {window}"))]
+    table = "".join(f'<tr><td style="padding:4px 18px 4px 0;color:#6E675E;white-space:nowrap">{k}</td>'
+                    f"<td>{v}</td></tr>" for k, v in rows)
+    body = (f"<p>Hi {html.escape(first)},</p>"
+            f"<p>Thank you for your interest in {html.escape(COMPANY_NAME)}!</p>"
+            "<p><b>Your free trial account is ready.</b> You can now explore the platform and experience its "
+            "features through your personalised demo access.</p>"
+            + _button(access, "Access Your Free Trial")
+            + f'<table style="font-size:14px;margin:0 0 14px">{table}</table>'
+            f'<p style="font-size:14px"><b>How to sign in:</b> {html.escape(login)}</p>'
+            "<p>Once you’re in, a short interactive tour shows you the key features. You can skip it at any "
+            "time and explore on your own.</p>"
+            f'<p>If you need assistance, please contact <a href="mailto:{html.escape(SUPPORT_EMAIL)}">'
+            f"{html.escape(SUPPORT_EMAIL)}</a>.</p>"
+            f"<p>Best regards,<br>{html.escape(COMPANY_NAME)} Team</p>")
+    return _message(lead["email"], subject, text_body, _wrap(body))
+
+
+def send_trial(lead, access):
+    """Send the free-trial email now; True when it was handed to the mail server
+    (or saved, in console mode). Never raises: a failure is logged, without the
+    link, and the visitor can ask for it again."""
+    try:
+        _deliver(trial_email(lead, access))
+        return True
+    except Exception as exc:                          # noqa: BLE001
+        print(f"[lead mail] FAILED trial email: {type(exc).__name__}: {exc}", flush=True)
+        return False
+
+
+def send_notify(lead):
+    try:
+        _deliver(_notify_email(lead))
+    except Exception as exc:                          # noqa: BLE001
+        print(f"[lead mail] FAILED notify email: {type(exc).__name__}: {exc}", flush=True)
 
 
 def _notify_email(lead):

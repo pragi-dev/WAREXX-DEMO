@@ -21,6 +21,9 @@ const store = {
   set: (k, v) => { try { v ? localStorage.setItem(K[k], v) : localStorage.removeItem(K[k]) } catch { /* private mode */ } },
 }
 
+/** The signed-in trial user's email, or '' (the demo without sign-up). */
+export function trialUser() { return (TRIAL_ON && peek(store.get('session'))?.e) || '' }
+
 /** The readable half of a pass (the server checks the signature, not this). */
 export function peek(pass) {
   try {

@@ -23,6 +23,26 @@ _trial_recent = defaultdict(deque)
 _trial_lock = threading.Lock()
 
 
+#: A free-trial request answered in the last few minutes, by (email, slot): a
+#: double-click or a retry gets the same trial back instead of a second pass
+#: and a second email — and the email again only if the first one failed.
+BOOKING_TTL = 10 * 60
+_bookings = {}
+_bookings_lock = threading.Lock()
+
+
+def _booking(key, value=None):
+    now = time.time()
+    with _bookings_lock:
+        for k in [k for k, (t, _) in _bookings.items() if now - t > BOOKING_TTL]:
+            del _bookings[k]
+        if value is not None:
+            _bookings[key] = (now, value)
+            return value
+        hit = _bookings.get(key)
+        return hit[1] if hit else None
+
+
 def _trial_allowed(ip):
     now = time.time()
     with _trial_lock:
@@ -75,6 +95,11 @@ class LeadHandler(BaseHTTPRequestHandler):
             return None
         return self.rfile.read(length) if length else b""
 
+    def _hosts(self):
+        """The host the visitor's request came to (a local preview passes it on
+        as X-Forwarded-Host); used for the email's link in development only."""
+        return [self.headers.get("X-Forwarded-Host") or "", self.headers.get("Host") or ""]
+
     def _ip(self):
         return (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or self.client_address[0]
 
@@ -90,24 +115,70 @@ class LeadHandler(BaseHTTPRequestHandler):
         try:
             lead = lead_mail.accept(raw, self._ip())
         except lead_mail.LeadError as e:
-            return self._answer(e.status, {"detail": e.detail})
+            body = {"detail": e.detail}
+            if e.fields:
+                body["fields"] = e.fields
+            return self._answer(e.status, body)
         out = {"ok": True}
-        # a demo slot booked with the form: the pass to sign up for it
+        # a demo slot booked with the form: the free trial — its sign-up pass,
+        # then (only once the pass exists) the email with the access link
+        if lead.get("slot") and lead["type"] in ("contact", "demo") and trial.configured():
+            return self._answer(200, self._book_trial(lead))
         if lead.get("slot") and lead["type"] in ("contact", "demo"):
-            try:
-                out["trial"] = trial.ticket(lead["email"], lead["slot"])
-                lead["trial_window"] = out["trial"]["window"]
-            except trial.TrialError as e:
-                out["trial_error"] = e.detail
+            out["trial_error"] = "trial_not_configured"
         if self.send_in_background:
             threading.Thread(target=lead_mail.send_all, args=(lead,), daemon=True).start()
         else:
             lead_mail.send_all(lead)
         return self._answer(200, out)
 
+    def _book_trial(self, lead):
+        key = (lead["email"].lower(), lead["slot"])
+        done = _booking(key)
+        if done:
+            out = dict(done["out"])
+            if not out.get("email_sent") and done.get("access"):     # the first email failed: try again
+                out["email_sent"] = lead_mail.send_trial(done["lead"], done["access"])
+                _booking(key, {**done, "out": out})
+            return out
+        try:
+            t = trial.ticket(lead["email"], lead["slot"], name=lead["name"])
+        except trial.TrialError as e:
+            return {"ok": True, "trial_error": e.detail}
+        lead["trial_window"], lead["trial_minutes"] = t["window"], t["minutes"]
+        access = trial.access_url(t["ticket"], self._hosts())
+        if not access:
+            print("[lead api] no demo address for the trial email's link: set DEMO_PUBLIC_URL", flush=True)
+        sent = lead_mail.send_trial(lead, access) if access else False
+        out = {"ok": True, "trial": t, "email_sent": sent}
+        _booking(key, {"out": out, "lead": lead, "access": access})
+        if self.send_in_background:
+            threading.Thread(target=lead_mail.send_notify, args=(lead,), daemon=True).start()
+        else:
+            lead_mail.send_notify(lead)
+        return out
+
+    def _resend(self, ticket_token):
+        """The free-trial email again, for whoever holds the trial's pass."""
+        try:
+            d = trial.resend_details(ticket_token)
+        except trial.TrialError as e:
+            return self._answer(e.status, {"detail": e.detail})
+        if not lead_mail._allowed("email:" + d["email"]):
+            return self._answer(429, {"detail": "too_many_attempts"})
+        access = trial.access_url(ticket_token, self._hosts())
+        lead = {"name": d["name"], "email": d["email"], "trial_window": d["window"], "trial_minutes": d["minutes"]}
+        return self._answer(200, {"ok": True, "email_sent": lead_mail.send_trial(lead, access) if access else False})
+
     def _trial(self, raw):
         if not _trial_allowed(self._ip()):
             return self._answer(429, {"detail": "too_many_attempts"})
+        try:
+            data = json.loads(raw.decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            data = None
+        if isinstance(data, dict) and data.get("action") == "resend":
+            return self._resend(data.get("ticket"))
         try:
             return self._answer(200, trial.handle(raw))
         except trial.TrialError as e:

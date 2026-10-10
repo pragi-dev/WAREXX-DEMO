@@ -25,6 +25,15 @@ Settings (server-side environment, never VITE_*):
     DEMO_SLOT_HOURS      slot start hours, default "10,12,15,17"
     DEMO_SLOT_TZ_MINUTES UTC offset of those hours in minutes, default 330 (IST)
     DEMO_SLOT_DAYS       how far ahead a slot may be booked, default 7
+    DEMO_PUBLIC_URL      the demo's address for the access link in the email,
+                         e.g. https://warexx-demo.vercel.app/demo/ — on Vercel it
+                         defaults to the project's production address + /demo/
+
+The email's "Access Your Free Trial" button is the demo address with the ticket
+in its #fragment: the same expiring, email-bound pass the form hands the browser,
+so the visitor can open the demo from their inbox, on any device, until the end
+of their window. It sets up a password of their choice there; no password is
+ever sent by email.
 """
 import base64
 import datetime as dt
@@ -32,6 +41,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import time
 
@@ -127,10 +137,50 @@ def describe(start, end):
 
 # ---- passes --------------------------------------------------------------
 
-def ticket(email, slot, now=None):
+def ticket(email, slot, now=None, name=""):
     start, end = slot_window(slot, now)
-    return {"ticket": sign({"k": "t", "e": email.lower(), "s": start, "x": end, "n": secrets.token_hex(6)}),
-            "email": email.lower(), "start": start, "end": end, "window": describe(start, end)}
+    pass_ = {"k": "t", "e": email.lower(), "s": start, "x": end, "n": secrets.token_hex(6)}
+    if name:
+        pass_["nm"] = str(name)[:80]          # for the greeting in a resent email; signed like the rest
+    return {"ticket": sign(pass_), "email": email.lower(), "start": start, "end": end,
+            "window": describe(start, end), "minutes": WINDOW // 60}
+
+
+_LOCAL = re.compile(r"^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$")
+
+
+def access_url(ticket_token, hosts=()):
+    """The link the email's button opens: the demo, with the ticket in its
+    #fragment (which browsers never send to any server).
+
+    Where the demo is, in order: DEMO_PUBLIC_URL; Vercel's own production
+    address for this project (VERCEL_PROJECT_PRODUCTION_URL, set by Vercel);
+    and, for local development only, the host the request came to when it is
+    localhost. A request's Host is never trusted otherwise: anyone can send
+    any Host to a server, and a link built from it would put an address of
+    their choosing into a genuine WAREXX email. None = no link can be made."""
+    base = (os.environ.get("DEMO_PUBLIC_URL") or "").strip()
+    if not base:
+        prod = (os.environ.get("VERCEL_PROJECT_PRODUCTION_URL") or "").strip()
+        if prod:
+            base = (prod if prod.startswith("http") else "https://" + prod).rstrip("/") + "/demo/"
+    if not base:
+        local = next((h.strip() for h in hosts if h and _LOCAL.match(h.strip())), None)
+        if not local:
+            return None
+        base = "http://" + local + "/demo/"
+    return base.split("#")[0] + "#t=" + ticket_token
+
+
+def resend_details(ticket_token, now=None):
+    """What a "send the email again" needs from a ticket the visitor holds:
+    the email it was issued to and the window — refused once the window is over."""
+    now = time.time() if now is None else now
+    t = unsign(ticket_token, "t")
+    if now >= t["x"]:
+        raise TrialError(403, "expired", end=t["x"])
+    return {"email": t["e"], "name": t.get("nm") or "", "start": t["s"], "end": t["x"],
+            "window": describe(t["s"], t["x"]), "minutes": WINDOW // 60}
 
 
 def _hash(password, salt):

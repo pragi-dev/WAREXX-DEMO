@@ -11,7 +11,8 @@ import '../vendor/warexx-app/src/design-system.css'
 import '../vendor/warexx-app/src/ui/warexx.css'
 import '../vendor/warexx-app/src/ui/screens.css'
 import './demo.css'
-import { TRIAL_ON, TrialGate, TrialWatch, checkSession, takeTicketFromUrl } from './trial.jsx'
+import { TRIAL_ON, TrialGate, TrialWatch, checkSession, takeTicketFromUrl, trialUser } from './trial.jsx'
+import { TourHost, startTour } from './tour.jsx'
 
 // The public landing page, for "Talk to us" when the visitor did not arrive from
 // it. Public, build-time, never a secret (see ../.env.example).
@@ -71,6 +72,7 @@ function Banner() {
     <div className="wxdemo-banner" role="note">
       <span className="wxdemo-dot" aria-hidden="true" />
       <span><b>Live demo</b> · sample business, explore freely — changes reset when you reload</span>
+      <button type="button" className="wxdemo-reset" onClick={startTour}>Product tour</button>
       <button type="button" className="wxdemo-reset" onClick={resetDemo}>Start over</button>
       <a href={(back || LANDING_URL) + '#contact'} target="_top">Talk to us</a>
     </div>
@@ -98,7 +100,11 @@ ready().then(async () => {
   document.getElementById('boot')?.remove()
   document.body.classList.add('wxdemo')
   root.render(
-    <React.StrictMode><App /><Banner />{open && <TrialWatch end={open.end} skew={open.skew} />}</React.StrictMode>)
+    <React.StrictMode>
+      <App /><Banner />{open && <TrialWatch end={open.end} skew={open.skew} />}
+      {/* the guided tour, the first time this demo user opens WAREXX (tour.jsx) */}
+      <TourHost user={trialUser()} warehouse={START.warehouse} />
+    </React.StrictMode>)
 }).catch((e) => {
   const b = document.getElementById('boot')
   if (b) b.innerHTML = `<div style="text-align:center;max-width:420px;padding:24px"><b>The demo could not start</b>${String(e.message || e)}</div>`

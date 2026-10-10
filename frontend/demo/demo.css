@@ -59,3 +59,42 @@ body.wxtrial-ended .wxdemo-banner { display: none; }
   box-shadow: 0 4px 14px -6px rgba(0, 0, 0, .4); }
 .wxtrial-timer b { color: #fff; font-variant-numeric: tabular-nums; margin-left: 4px; }
 .wxtrial-timer.soon { background: #C2560F; color: #FFE9D8; }
+
+/* ---- the guided tour (tour.jsx) -------------------------------------------
+   The dimming lets clicks through (pointer-events: none), so the app stays
+   usable under every step; only the tooltip itself takes clicks. Below the
+   trial's "time is over" card (z-index 500), above the app and the banner. */
+.wxtour-spot { position: fixed; z-index: 440; border-radius: 12px; pointer-events: none;
+  box-shadow: 0 0 0 2px #EE7A1E, 0 0 0 9999px rgba(12, 12, 14, .52); }
+.wxtour-dim { position: fixed; inset: 0; z-index: 440; background: rgba(12, 12, 14, .52); pointer-events: none; }
+.wxtour-card { position: fixed; z-index: 450; width: min(360px, calc(100vw - 24px)); background: #fff; color: #141414;
+  border-radius: 14px; padding: 16px 18px 14px; font-family: Inter, Geist, system-ui, sans-serif;
+  box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .55), 0 0 0 1px rgba(0, 0, 0, .06); }
+.wxtour-card.docked { left: 50%; transform: translateX(-50%); bottom: 76px; }
+.wxtour-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.wxtour-count { font-size: 12px; font-weight: 600; color: #C9520E; letter-spacing: .02em; }
+.wxtour-x { width: 28px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: #6E675E;
+  font-size: 20px; line-height: 1; cursor: pointer; }
+.wxtour-x:hover { background: #F3F1EC; color: #141414; }
+.wxtour-card h2 { margin: 0 0 6px; font-size: 16.5px; font-weight: 650; letter-spacing: -.01em; line-height: 1.3; }
+.wxtour-card p { margin: 0; font-size: 13.5px; line-height: 1.55; color: #45403A; }
+.wxtour-note { margin-top: 8px !important; padding: 8px 10px; border-radius: 8px; background: #FDF3EC; color: #8A3F12 !important; font-size: 12.5px !important; }
+.wxtour-bar { height: 3px; margin: 12px 0 10px; border-radius: 3px; background: #EFECE6; overflow: hidden; }
+.wxtour-bar i { display: block; height: 100%; background: linear-gradient(90deg, #EE7A1E, #D9601B); transition: width .25s; }
+.wxtour-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.wxtour-nav { display: inline-flex; gap: 8px; }
+.wxtour-skip { border: 0; background: transparent; padding: 6px 2px; font: inherit; font-size: 13px; font-weight: 600;
+  color: #6E675E; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.wxtour-skip:hover { color: #141414; }
+.wxtour-btn { height: 34px; padding: 0 14px; border-radius: 9px; border: 1px solid #DDD8D0; background: #fff; color: #141414;
+  font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.wxtour-btn:hover { background: #F6F4F0; }
+.wxtour-btn.primary { background: #141414; border-color: #141414; color: #fff; }
+.wxtour-btn.primary:hover { background: #000; }
+.wxtour-card button:focus-visible { outline: 2px solid #EE7A1E; outline-offset: 2px; }
+.wxtour-done { position: fixed; inset: 0; z-index: 450; display: grid; place-items: center; padding: 20px; background: rgba(12, 12, 14, .45); }
+.wxtour-card--done { position: relative; text-align: center; padding: 26px 24px 22px; width: min(400px, 100%); }
+.wxtour-card--done p { margin-bottom: 16px; }
+.wxtour-check { display: inline-grid; place-items: center; width: 44px; height: 44px; margin-bottom: 10px; border-radius: 50%;
+  background: #FDF3EC; color: #D9601B; font-size: 22px; font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .wxtour-bar i { transition: none; } }
