@@ -143,7 +143,7 @@ def ticket(email, slot, now=None, name=""):
     if name:
         pass_["nm"] = str(name)[:80]          # for the greeting in a resent email; signed like the rest
     return {"ticket": sign(pass_), "email": email.lower(), "start": start, "end": end,
-            "window": describe(start, end), "minutes": WINDOW // 60}
+            "window": describe(start, end), "minutes": WINDOW // 60, "ref": pass_["n"]}
 
 
 _LOCAL = re.compile(r"^(localhost|127\.0\.0\.1|\[::1\])(:\d{1,5})?$")
@@ -179,7 +179,7 @@ def resend_details(ticket_token, now=None):
     t = unsign(ticket_token, "t")
     if now >= t["x"]:
         raise TrialError(403, "expired", end=t["x"])
-    return {"email": t["e"], "name": t.get("nm") or "", "start": t["s"], "end": t["x"],
+    return {"email": t["e"], "name": t.get("nm") or "", "ref": t.get("n", ""), "start": t["s"], "end": t["x"],
             "window": describe(t["s"], t["x"]), "minutes": WINDOW // 60}
 
 
@@ -195,8 +195,11 @@ def _window_check(p, now):
 
 
 def _session(p):
-    return {"session": sign({"k": "s", "e": p["e"], "s": p["s"], "x": p["x"]}),
-            "email": p["e"], "start": p["s"], "end": p["x"], "window": describe(p["s"], p["x"])}
+    # "n": the trial's reference (from its ticket), so the server can tell which
+    # trial a sign-in or a finished tour belongs to (store.py)
+    return {"session": sign({"k": "s", "e": p["e"], "s": p["s"], "x": p["x"], "n": p.get("n", "")}),
+            "email": p["e"], "start": p["s"], "end": p["x"], "window": describe(p["s"], p["x"]),
+            "ref": p.get("n", "")}
 
 
 def signup(ticket_token, password, now=None):
@@ -207,7 +210,8 @@ def signup(ticket_token, password, now=None):
     if not isinstance(password, str) or len(password) < MIN_PASSWORD:
         raise TrialError(422, "weak_password")
     salt = secrets.token_hex(16)
-    acc = {"k": "a", "e": t["e"], "s": t["s"], "x": t["x"], "salt": salt, "h": _hash(password, salt)}
+    acc = {"k": "a", "e": t["e"], "s": t["s"], "x": t["x"], "salt": salt, "h": _hash(password, salt),
+           "n": t.get("n", "")}
     # a session straight away, even before the slot: the demo then waits for the
     # slot to open (verify answers not_yet) without asking for the password again
     return {"account": sign(acc), **_session(acc)}
@@ -228,7 +232,19 @@ def verify(session_token, now=None):
     now = time.time() if now is None else now
     s = unsign(session_token, "s")
     _window_check(s, now)
-    return {"ok": True, "email": s["e"], "end": s["x"], "now": int(now)}
+    return {"ok": True, "email": s["e"], "end": s["x"], "now": int(now), "ref": s.get("n", "")}
+
+
+TOUR_STATES = ("completed", "skipped")
+
+
+def tour(session_token, state, now=None):
+    """The visitor finished or skipped the guided tour: whose trial it was comes
+    from their session, never from the request."""
+    if state not in TOUR_STATES:
+        raise TrialError(422, "bad_request")
+    s = unsign(session_token, "s")
+    return {"ok": True, "ref": s.get("n", ""), "state": state}
 
 
 def handle(raw):
@@ -246,4 +262,6 @@ def handle(raw):
         return login(data.get("account"), data.get("email"), data.get("password"))
     if action == "verify":
         return verify(data.get("session"))
+    if action == "tour":
+        return tour(data.get("session"), data.get("state"))
     raise TrialError(400, "bad_request")

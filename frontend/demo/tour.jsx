@@ -13,9 +13,10 @@
 // on screen (a narrow phone, a screen that changed) is still explained, in the
 // middle of the screen, rather than pointing at nothing.
 //
-// Where the state lives: in this browser, under the signed-in trial user's email
-// (wx_tour:<email>) — the demo has no database (see trial.jsx), so the browser
-// that holds the visitor's demo account is also what remembers their tour.
+// Where the state lives: against the trial user on the server (lead-api/store.py,
+// reported through /api/trial and read back with the session check), and in this
+// browser under their email (wx_tour:<email>) — so it holds on another device,
+// and still holds here if the database cannot be reached.
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -139,7 +140,7 @@ function place(rect, box, vw, vh) {
 
 // ---- the tour ------------------------------------------------------------------
 /** Shows the tour on top of the app. Mounted once, beside <App/>. */
-export function TourHost({ user, warehouse }) {
+export function TourHost({ user, warehouse, serverState, onSave }) {
   const [step, setStep] = useState(-1)        // -1: not running; STEPS.length: the "all set" card
   const [rect, setRect] = useState(null)
   const [missing, setMissing] = useState(false)
@@ -152,6 +153,9 @@ export function TourHost({ user, warehouse }) {
   // at the step the tour was on when it reloaded into the sample warehouse
   useEffect(() => {
     let alive = true
+    // what the server remembers for this user (another device, a cleared
+    // browser) counts as much as this browser's own note
+    if (serverState === 'completed' || serverState === 'skipped') tourState.set(user, serverState)
     let resume = null
     try { resume = sessionStorage.getItem('wx_tour_resume'); sessionStorage.removeItem('wx_tour_resume') } catch { /* private mode */ }
     if (resume !== null && !isNaN(+resume)) {
@@ -170,7 +174,7 @@ export function TourHost({ user, warehouse }) {
     const again = () => setStep(0)
     window.addEventListener('wx:tour-start', again)
     return () => { alive = false; window.removeEventListener('wx:tour-start', again) }
-  }, [user])
+  }, [user, serverState])
 
   // each step: open its screen, find its element (waiting a little for it), scroll to it
   useEffect(() => {
@@ -215,15 +219,20 @@ export function TourHost({ user, warehouse }) {
   // focus the tooltip on every step, so keyboard and screen-reader users follow it
   useEffect(() => { if (step >= 0) box.current?.querySelector('[data-tour-primary]')?.focus({ preventScroll: true }) }, [step, pos === null])
 
+  const save = useCallback((how) => {
+    if (tourState.get(user) === how) return
+    tourState.set(user, how)
+    try { onSave && onSave(how) } catch { /* the server copy is a bonus; this browser's is kept */ }
+  }, [user, onSave])
   const close = useCallback((how) => {
     run.current++
-    if (how) tourState.set(user, how)
+    if (how) save(how)
     setStep(-1); setRect(null); setMissing(false)
-  }, [user])
+  }, [save])
   const next = useCallback(() => setStep((s) => {
-    if (s + 1 >= STEPS.length) { tourState.set(user, 'completed'); return STEPS.length }
+    if (s + 1 >= STEPS.length) { save('completed'); return STEPS.length }
     return s + 1
-  }), [user])
+  }), [save])
   const back = useCallback(() => setStep((s) => Math.max(0, s - 1)), [])
 
   useEffect(() => {

@@ -26,3 +26,6 @@ __pycache__/
 # copied in by tools/import-landing.mjs for local builds; host it and set
 # VITE_DEMO_VIDEO_URL for deployments.
 frontend/landing/assets/*.mp4
+
+# The local leads database (lead-api/store.py without POSTGRES_URL): visitors' details
+lead-api/data/

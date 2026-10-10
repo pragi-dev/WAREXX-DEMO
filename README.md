@@ -78,8 +78,38 @@ See [.env.example](.env.example). Two kinds, kept apart:
   password, from/to). Set them on the host running `api/leads.py` /
   `lead-api/server.py`. They are never part of a build.
 
-There is no database setting. Nothing here knows the production database URL,
+- **`POSTGRES_URL` / `ADMIN_PASSWORD` are server-side**: the leads database and
+  the admin page's password (see [Leads database and admin](#leads-database-and-admin)).
+
+The demo has no database. Nothing here knows the production database URL,
 auth secret, or any API key, and nothing should.
+
+## Leads database and admin
+
+Every form sent from the landing page (contact, demo, brochure, plan enquiry…)
+and every free-trial user is kept in a database: who they are, which form,
+whether the access email went out, when they signed up and last signed in, and
+whether they finished or skipped the product tour. Read it at **`/admin`**:
+sign in with `ADMIN_PASSWORD`, then search, filter, page through, and **Export
+CSV** (opens in Excel).
+
+- **On Vercel**: Project → **Storage** → **Create Database** → **Neon**
+  (Postgres), connect it to this project (it sets `POSTGRES_URL`), add
+  **`ADMIN_PASSWORD`** under Environment Variables, and redeploy. The tables
+  are created on first use.
+- **Locally** with no database address set: a SQLite file,
+  `lead-api/data/leads.db` (git-ignored). Start the lead API with
+  `ADMIN_PASSWORD` set to use `/admin` on the preview site.
+
+A database that is down or misconfigured never breaks a form, an email or the
+demo: the write is skipped and logged. This is the website's own database, not
+the WAREXX software's. `/admin` is linked from nowhere, `noindex`, never
+cached, rate-limited at sign-in, and its CSV defuses spreadsheet formulas.
+
+Code: `lead-api/store.py` (the database), `lead-api/admin.py` (`/api/admin`),
+`frontend/admin/index.html` (the page). Test: `python lead-api/store_test.py`
+(SQLite; set `LEADS_DATABASE_URL` and install `requirements.txt` to run it on
+Postgres).
 
 ## The demo
 
@@ -119,9 +149,9 @@ On the one-domain site (`npm run build:site`) the demo is behind a sign-up:
 
 The server (`lead-api/trial.py`, `api/trial.py` on Vercel) issues and checks
 every pass against its own clock. The passes are signed with
-`DEMO_TRIAL_SECRET`, so a visitor cannot extend their window. There is no
-database: a visitor's account lives in their browser, and on another device
-they book again. Set **`DEMO_TRIAL_SECRET`** in the Vercel project (see
+`DEMO_TRIAL_SECRET`, so a visitor cannot extend their window. A visitor's
+account lives in their browser (on another device they book again); the leads
+database only records what happened, for the admin page. Set **`DEMO_TRIAL_SECRET`** in the Vercel project (see
 `.env.example`). Until it is set, the forms send as before and the demo opens
 without a sign-up.
 
@@ -162,11 +192,12 @@ repository root, if `landing-demo` is its own repository). `vercel.json` runs
 | `https://<project>.vercel.app/` | the landing page |
 | `https://<project>.vercel.app/demo/` | the interactive demo ("Book a demo" opens it) |
 | `https://<project>.vercel.app/api/leads` | the lead form's email function (`api/leads.py`) |
+| `https://<project>.vercel.app/admin` | the leads admin (`ADMIN_PASSWORD`; see above) |
 
 Set the `LEAD_*` variables in the project's environment settings. The demo's
 service worker, dataset and phone app sit at `/sw.js`, `/data/` and `/m/`,
 because the app calls `/api/...` from the root of the domain. The worker
-leaves `/api/leads` alone, so the forms still reach the real function. Try it
+leaves `/api/leads`, `/api/trial`, `/api/geo` and `/api/admin` alone, so they reach the real functions. Try it
 locally with `npm run build:site && npm run preview:site` (http://localhost:8030,
 with `python ../lead-api/server.py` running for the forms).
 

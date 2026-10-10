@@ -11,7 +11,7 @@ import '../vendor/warexx-app/src/design-system.css'
 import '../vendor/warexx-app/src/ui/warexx.css'
 import '../vendor/warexx-app/src/ui/screens.css'
 import './demo.css'
-import { TRIAL_ON, TrialGate, TrialWatch, checkSession, takeTicketFromUrl, trialUser } from './trial.jsx'
+import { TRIAL_ON, TrialGate, TrialWatch, checkSession, reportTour, takeTicketFromUrl, trialUser } from './trial.jsx'
 import { TourHost, startTour } from './tour.jsx'
 
 // The public landing page, for "Talk to us" when the visitor did not arrive from
@@ -103,7 +103,7 @@ ready().then(async () => {
     <React.StrictMode>
       <App /><Banner />{open && <TrialWatch end={open.end} skew={open.skew} />}
       {/* the guided tour, the first time this demo user opens WAREXX (tour.jsx) */}
-      <TourHost user={trialUser()} warehouse={START.warehouse} />
+      <TourHost user={trialUser()} warehouse={START.warehouse} serverState={open?.tourState} onSave={reportTour} />
     </React.StrictMode>)
 }).catch((e) => {
   const b = document.getElementById('boot')

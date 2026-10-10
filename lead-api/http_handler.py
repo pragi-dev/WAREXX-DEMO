@@ -14,7 +14,9 @@ import time
 from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler
 
+import admin
 import lead_mail
+import store
 import trial
 
 #: Sign-up / sign-in attempts per address per hour (a password guess costs one).
@@ -78,7 +80,7 @@ class LeadHandler(BaseHTTPRequestHandler):
         p = self.path.split("?")[0].rstrip("/")
         if self.only:                      # a Vercel function: its file decides the path
             return self.only
-        return {"/api/leads": "leads", "/api/trial": "trial"}.get(p)
+        return {"/api/leads": "leads", "/api/trial": "trial", "/api/admin": "admin"}.get(p)
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -112,6 +114,8 @@ class LeadHandler(BaseHTTPRequestHandler):
             return self._answer(413, {"detail": "Too large"})
         if route == "trial":
             return self._trial(raw)
+        if route == "admin":
+            return self._admin(raw)
         try:
             lead = lead_mail.accept(raw, self._ip())
         except lead_mail.LeadError as e:
@@ -126,6 +130,7 @@ class LeadHandler(BaseHTTPRequestHandler):
             return self._answer(200, self._book_trial(lead))
         if lead.get("slot") and lead["type"] in ("contact", "demo"):
             out["trial_error"] = "trial_not_configured"
+        store.record_lead(lead)                       # every form, kept (store.py)
         if self.send_in_background:
             threading.Thread(target=lead_mail.send_all, args=(lead,), daemon=True).start()
         else:
@@ -140,10 +145,12 @@ class LeadHandler(BaseHTTPRequestHandler):
             if not out.get("email_sent") and done.get("access"):     # the first email failed: try again
                 out["email_sent"] = lead_mail.send_trial(done["lead"], done["access"])
                 _booking(key, {**done, "out": out})
+                store.trial_email(out["trial"]["ref"], out["email_sent"])
             return out
         try:
             t = trial.ticket(lead["email"], lead["slot"], name=lead["name"])
         except trial.TrialError as e:
+            store.record_lead(lead)
             return {"ok": True, "trial_error": e.detail}
         lead["trial_window"], lead["trial_minutes"] = t["window"], t["minutes"]
         access = trial.access_url(t["ticket"], self._hosts())
@@ -152,6 +159,10 @@ class LeadHandler(BaseHTTPRequestHandler):
         sent = lead_mail.send_trial(lead, access) if access else False
         out = {"ok": True, "trial": t, "email_sent": sent}
         _booking(key, {"out": out, "lead": lead, "access": access})
+        # the trial and the form that asked for it, kept (store.py) — after the
+        # email, and never in its way
+        store.record_trial(t["ref"], lead, t["start"], t["end"], t["window"], sent)
+        store.record_lead(lead, trial_ref=t["ref"], email_sent=sent)
         if self.send_in_background:
             threading.Thread(target=lead_mail.send_notify, args=(lead,), daemon=True).start()
         else:
@@ -168,7 +179,9 @@ class LeadHandler(BaseHTTPRequestHandler):
             return self._answer(429, {"detail": "too_many_attempts"})
         access = trial.access_url(ticket_token, self._hosts())
         lead = {"name": d["name"], "email": d["email"], "trial_window": d["window"], "trial_minutes": d["minutes"]}
-        return self._answer(200, {"ok": True, "email_sent": lead_mail.send_trial(lead, access) if access else False})
+        sent = lead_mail.send_trial(lead, access) if access else False
+        store.trial_email(d.get("ref"), sent)
+        return self._answer(200, {"ok": True, "email_sent": sent})
 
     def _trial(self, raw):
         if not _trial_allowed(self._ip()):
@@ -180,9 +193,31 @@ class LeadHandler(BaseHTTPRequestHandler):
         if isinstance(data, dict) and data.get("action") == "resend":
             return self._resend(data.get("ticket"))
         try:
-            return self._answer(200, trial.handle(raw))
+            result = trial.handle(raw)
         except trial.TrialError as e:
             return self._answer(e.status, {"detail": e.detail, **e.extra})
+        # what happened to the trial, kept against it (store.py)
+        action, ref = (data or {}).get("action"), result.get("ref")
+        if ref and action == "signup":
+            store.trial_signed_up(ref)
+        elif ref and action == "login":
+            store.trial_logged_in(ref)
+        elif ref and action == "tour":
+            store.trial_tour(ref, result["state"])
+        elif ref and action == "verify":
+            result["tour_state"] = store.tour_state(ref)      # the tour, remembered for this user
+        result.pop("ref", None)                               # internal; the browser does not need it
+        return self._answer(200, result)
+
+    def _admin(self, raw):
+        try:
+            return self._answer(200, admin.handle(raw, ip=self._ip(),
+                                                  token=(self.headers.get("Authorization") or "").replace("Bearer ", "")))
+        except admin.AdminError as e:
+            return self._answer(e.status, {"detail": e.detail})
+        except Exception as exc:                              # noqa: BLE001 — the database, most likely
+            print(f"[admin] failed: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
+            return self._answer(503, {"detail": "database_unavailable"})
 
     def _refuse(self):
         self._answer(405, {"detail": "Only POST"})

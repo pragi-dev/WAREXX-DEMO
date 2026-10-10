@@ -19,7 +19,10 @@ from http.server import ThreadingHTTPServer
 OUTBOX = tempfile.mkdtemp(prefix="warexx-trial-mail-")
 os.environ.update({"DEMO_TRIAL_SECRET": "test-secret-for-the-trial-flow-0123456789",
                    "LEAD_MAIL_BACKEND": "console", "LEAD_MAIL_DIR": OUTBOX,
-                   "LEAD_SUPPORT_EMAIL": "support@example.com", "LEAD_COMPANY_NAME": "WAREXX"})
+                   "LEAD_SUPPORT_EMAIL": "support@example.com", "LEAD_COMPANY_NAME": "WAREXX",
+                   "LEADS_SQLITE_PATH": os.path.join(OUTBOX, "leads.db")})   # never the real leads file
+for _k in ("LEADS_DATABASE_URL", "POSTGRES_URL", "DATABASE_URL"):
+    os.environ.pop(_k, None)
 os.environ.pop("DEMO_PUBLIC_URL", None)
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import http_handler  # noqa: E402

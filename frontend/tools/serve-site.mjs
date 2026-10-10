@@ -22,7 +22,7 @@ if (!existsSync(path.join(SITE, 'index.html'))) { console.error('dist/site is mi
 
 createServer((req, res) => {
   const url = new URL(req.url, 'http://x')
-  if (url.pathname === '/api/leads' || url.pathname === '/api/trial') {
+  if (url.pathname === '/api/leads' || url.pathname === '/api/trial' || url.pathname === '/api/admin') {
     const fwd = httpRequest({ hostname: leadApi.hostname, port: leadApi.port, path: url.pathname,
       method: req.method, headers: { ...req.headers, host: leadApi.host, 'x-forwarded-host': req.headers.host } }, (r) => { res.writeHead(r.statusCode, r.headers); r.pipe(res) })
     fwd.on('error', () => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end('{"detail":"lead API not running"}') })

@@ -21,6 +21,13 @@ const store = {
   set: (k, v) => { try { v ? localStorage.setItem(K[k], v) : localStorage.removeItem(K[k]) } catch { /* private mode */ } },
 }
 
+/** The guided tour finished or skipped: kept against this trial on the server
+ *  (lead-api/store.py), so it is not offered again on another device. */
+export function reportTour(state) {
+  const session = store.get('session')
+  if (TRIAL_ON && session) call('tour', { session, state })
+}
+
 /** The signed-in trial user's email, or '' (the demo without sign-up). */
 export function trialUser() { return (TRIAL_ON && peek(store.get('session'))?.e) || '' }
 
@@ -72,7 +79,7 @@ export async function checkSession() {
     return { state: 'none' }
   }
   const r = await call('verify', { session: s })
-  if (r.ok) return { state: 'open', end: r.end, skew: r.now ? r.now * 1000 - Date.now() : 0 }
+  if (r.ok) return { state: 'open', end: r.end, skew: r.now ? r.now * 1000 - Date.now() : 0, tourState: r.tour_state || null }
   if (r.detail === 'not_yet') return { state: 'not_yet', start: r.start, end: r.end, window: r.window }
   if (r.detail === 'expired') { store.set('session', ''); return { state: 'expired' } }
   if (r.status === 401) { store.set('session', ''); return { state: 'none' } }

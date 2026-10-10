@@ -39,7 +39,8 @@ const shape = (p) => p.replace(/\/\d+(?=\/|$)/g, '/:n').replace(/\/[0-9a-f]{8,}(
 // and /api/trial (the demo's sign-up / sign-in for a booked slot), plus /api/geo
 // (the landing page's visitor country, for prices in their currency). None is
 // part of the recording, and nothing of the demo's data goes to any of them.
-const REAL = new Set(['/api/leads', '/api/trial', '/api/geo'])
+// /api/admin is the leads admin page (/admin) — it must never get demo answers.
+const REAL = new Set(['/api/leads', '/api/trial', '/api/geo', '/api/admin'])
 const ours = (url) => url.origin === self.location.origin && !REAL.has(url.pathname) &&
   (url.pathname.startsWith('/api/') || url.pathname === '/api' || url.pathname.startsWith('/pos'))
 
