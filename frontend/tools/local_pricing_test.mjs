@@ -22,7 +22,7 @@ const plans = () => ({ pricing: { note: 'All prices are exclusive of GST.', plan
   { name: 'Custom', price: '', cta: 'Talk to our team', open: 'plan' },
 ] } })
 
-function visit({ tz, langs, saved, pathname = '/', page }) {
+function visit({ tz, langs, saved, pathname = '/', page, paymentUrl }) {
   const store = new Map(saved ? [['wrx_currency', saved]] : [])
   const RealDTF = Intl.DateTimeFormat
   const FakeIntl = Object.create(Intl)
@@ -30,7 +30,7 @@ function visit({ tz, langs, saved, pathname = '/', page }) {
     const f = new RealDTF(...a)
     return { resolvedOptions: () => ({ ...f.resolvedOptions(), timeZone: tz }), format: (d) => f.format(d) }
   }
-  const window = { WAREXX_CONFIG: plans() }
+  const window = { WAREXX_CONFIG: { ...plans(), ...(paymentUrl !== undefined ? { paymentUrl } : {}) } }
   const sandbox = {
     window, Intl: FakeIntl, console,
     navigator: { language: langs[0], languages: langs },
@@ -89,10 +89,18 @@ ok(us.money('Additional POS: ₹4,999/month').includes('data-inr="4999"'), 'add-
 console.log('plan buttons')
 const land = visit({ tz: 'Asia/Kolkata', langs: ['en-IN'] }).WAREXX_CONFIG.pricing.plans
 ok(land[0].name === 'Demo' && land[0].open === 'demo', 'a Demo card comes first and opens "Get demo trial"')
-ok(land.find(p => p.name === 'Custom').open === 'demo', 'Custom opens "Get demo trial"')
-ok(land.filter(p => /Monthly|Annual/.test(p.name)).every(p => /^\/pricing#plan-/.test(p.href)), 'Monthly and Annual open /pricing')
-const page = visit({ tz: 'Asia/Kolkata', langs: ['en-IN'], pathname: '/pricing', page: 'pricing' }).WAREXX_CONFIG.pricing.plans
-ok(page.filter(p => /Monthly|Annual/.test(p.name)).every(p => !p.href && p.open === 'subscribe'), 'on /pricing, Monthly and Annual open the plan enquiry')
+ok(land.find(p => p.name === 'Custom').open === 'demo', 'Custom opens the "Get demo trial" form')
+ok(land.find(p => p.name === 'Custom').cta === 'Talk to our team', 'Custom keeps its "Talk to our team" button')
+const subs = (ps) => ps.filter(p => /Monthly|Annual/.test(p.name))
+ok(subs(land).every(p => p.cta === 'Subscribe'), 'Monthly and Annual say "Subscribe"')
+ok(subs(land).every(p => !p.href && p.open === 'subscribe'), 'with no payment page yet, Subscribe opens the plan enquiry')
+const paid = visit({ tz: 'Asia/Kolkata', langs: ['en-IN'], paymentUrl: 'https://pay.example.com/subscribe' }).WAREXX_CONFIG.pricing.plans
+ok(subs(paid).map(p => p.href).join(' ') === 'https://pay.example.com/subscribe?plan=monthly https://pay.example.com/subscribe?plan=annual',
+  'with a payment page, Subscribe opens it with the plan named (?plan=monthly / ?plan=annual)')
+const paidQ = visit({ tz: 'Asia/Kolkata', langs: ['en-IN'], paymentUrl: 'https://pay.example.com/?src=site' }).WAREXX_CONFIG.pricing.plans
+ok(subs(paidQ)[0].href === 'https://pay.example.com/?src=site&plan=monthly', 'a payment address with its own ?query keeps it')
+const page = visit({ tz: 'Asia/Kolkata', langs: ['en-IN'], pathname: '/pricing', page: 'pricing', paymentUrl: 'https://pay.example.com/subscribe' }).WAREXX_CONFIG.pricing.plans
+ok(subs(page).every(p => p.cta === 'Subscribe' && /^https:\/\/pay\.example\.com/.test(p.href)), 'on /pricing too, Subscribe opens the payment page')
 ok(page.filter(p => p.name === 'Demo').length === 1, 'the Demo card is added once')
 
 console.log(bad ? `\n${bad} FAILED` : '\nall passing')

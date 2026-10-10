@@ -1992,6 +1992,11 @@ window.WAREXX_CONFIG = {
      e.g. "https://app.warexx.aavoraa.com/". */
   appUrl: "http://localhost:8000/",
 
+  /* The payment page "Subscribe" (Monthly / Annual) opens, with ?plan=monthly or
+     ?plan=annual added. Empty: Subscribe opens a plan enquiry instead. Filled in
+     at build time from VITE_PAYMENT_URL. */
+  paymentUrl: "",
+
   /* Demo time slots offered on the "Get demo trial" forms. Each opens the demo
      for two hours from its start, after the visitor signs up. Keep in step with
      the server (DEMO_SLOT_HOURS / DEMO_SLOT_TZ_MINUTES / DEMO_SLOT_DAYS in
@@ -2184,10 +2189,11 @@ window.WRX_CUR = (() => {
   }
 
   /* ---- the plans: a Demo card first, and where each button goes -------------
-     Demo and Custom open the "Get demo trial" form. Monthly and Annual open the
-     /pricing page on the landing site, and on /pricing itself they open a plan
-     enquiry (sent to the lead API as a "plan" lead). Keyed by plan name, so the
-     designer's own plans, prices and wording are kept as they come. */
+     Demo and Custom open the "Get demo trial" form. Monthly and Annual say
+     "Subscribe" and open the payment page (paymentUrl); with none set yet, a
+     plan enquiry (sent to the lead API as a "plan" lead). The same on the
+     landing page and on /pricing. Keyed by plan name, so the designer's own
+     plans, prices and wording are kept as they come. */
   const PLANS_PAGE = document.documentElement.dataset.page === 'pricing'
     || /^\/pricing\/?$/.test(location.pathname);
   const P = (window.WAREXX_CONFIG || {}).pricing;
@@ -2205,10 +2211,18 @@ window.WRX_CUR = (() => {
       const n = (p.name || '').toLowerCase();
       p.slug = n.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
       if (/^(monthly|annual)/.test(n)) {
-        if (PLANS_PAGE) { p.open = 'subscribe'; p.href = ''; p.cta = 'Choose ' + p.name; }
-        else { p.href = '/pricing#plan-' + p.slug; p.cta = 'View pricing'; }
-      } else if (/^(demo|custom)/.test(n)) {
+        // "Subscribe" goes to the payment page (WAREXX_CONFIG.paymentUrl, set at
+        // build time from VITE_PAYMENT_URL) with the plan named: ?plan=monthly.
+        // Until there is one, it opens the plan enquiry instead of a dead link.
+        p.cta = 'Subscribe';
+        const pay = String((window.WAREXX_CONFIG || {}).paymentUrl || '').trim();
+        if (pay) { p.href = pay + (pay.includes('?') ? '&' : '?') + 'plan=' + encodeURIComponent(p.slug); }
+        else { p.href = ''; p.open = 'subscribe'; }
+      } else if (/^demo/.test(n)) {
         p.open = 'demo'; p.href = ''; p.cta = 'Get demo trial';
+      } else if (/^custom/.test(n)) {
+        // the designer's own wording ("Talk to our team"); the demo form behind it
+        p.open = 'demo'; p.href = ''; p.cta = p.cta || 'Talk to our team';
       }
     }
   }

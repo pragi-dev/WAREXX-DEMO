@@ -61,6 +61,11 @@ export function merge(html) {
      e.g. "https://app.warexx.aavoraa.com/". */
   appUrl: "http://localhost:8000/",
 
+  /* The payment page "Subscribe" (Monthly / Annual) opens, with ?plan=monthly or
+     ?plan=annual added. Empty: Subscribe opens a plan enquiry instead. Filled in
+     at build time from VITE_PAYMENT_URL. */
+  paymentUrl: "",
+
   /* Demo time slots offered on the "Get demo trial" forms. Each opens the demo
      for two hours from its start, after the visitor signs up. Keep in step with
      the server (DEMO_SLOT_HOURS / DEMO_SLOT_TZ_MINUTES / DEMO_SLOT_DAYS in

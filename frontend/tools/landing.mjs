@@ -88,12 +88,13 @@ export function pricingPage(landingHtml) {
 }
 
 const DEFAULTS = {
-  dev: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: 'http://localhost:8002/', VITE_APP_URL: 'http://localhost:8000/' },
+  dev: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: 'http://localhost:8002/', VITE_APP_URL: 'http://localhost:8000/', VITE_PAYMENT_URL: '' },
   // "/demo/": the demo on this same site (npm run build:site). Set VITE_DEMO_URL
   // to https://demo.warexx.aavoraa.com/ once the demo has a domain of its own.
-  build: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: '/demo/', VITE_APP_URL: 'https://app.warexx.aavoraa.com/' },
+  // VITE_PAYMENT_URL: where "Subscribe" goes; empty until the payment page exists
+  build: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: '/demo/', VITE_APP_URL: 'https://app.warexx.aavoraa.com/', VITE_PAYMENT_URL: '' },
 }
-const KEYS = { VITE_LEAD_ENDPOINT: 'formEndpoint', VITE_DEMO_URL: 'demoAppUrl', VITE_APP_URL: 'appUrl' }
+const KEYS = { VITE_LEAD_ENDPOINT: 'formEndpoint', VITE_DEMO_URL: 'demoAppUrl', VITE_APP_URL: 'appUrl', VITE_PAYMENT_URL: 'paymentUrl' }
 
 /** VITE_* values from landing-demo/.env (KEY=VALUE lines), under the real environment. */
 function fileEnv() {
