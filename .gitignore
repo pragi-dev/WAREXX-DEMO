@@ -21,3 +21,8 @@ __pycache__/
 *.pyc
 .DS_Store
 .vercel/
+
+# The landing film's recorded video (~120 MB, over GitHub's 100 MB limit):
+# copied in by tools/import-landing.mjs for local builds; host it and set
+# VITE_DEMO_VIDEO_URL for deployments.
+frontend/landing/assets/*.mp4

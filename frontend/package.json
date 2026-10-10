@@ -18,7 +18,7 @@
     "preview:demo": "vite preview --config vite.demo.config.js",
     "preview:site": "node tools/serve-site.mjs",
     "sync:app": "node tools/sync-app.mjs",
-    "test": "node tools/isolation_test.mjs",
+    "test": "node tools/isolation_test.mjs && node tools/local_pricing_test.mjs",
     "check": "npm run build && npm run build:site && npm test"
   },
   "dependencies": {

@@ -1,0 +1,28 @@
+<!-- The /pricing page's own content. tools/landing.mjs builds /pricing from
+     the landing page: same head, styles, header, footer, forms and scripts, with
+     <main> holding the landing page's pricing section (where PRICING_SECTION
+     stands below) followed by this. The plan cards are drawn by the page's own
+     pricing code; local-pricing.js shows them in the visitor's currency and
+     points Monthly / Annual at a plan enquiry here. -->
+<!--PRICING_SECTION-->
+
+<section class="screen pricing-more" id="pricing-details">
+  <div class="wrap">
+    <header class="sec-head">
+      <div>
+        <p class="eyebrow reveal">Good to know</p>
+        <h2 class="display statement reveal">How WAREXX pricing works.</h2>
+      </div>
+    </header>
+    <div class="pmore">
+      <div class="pmore__item reveal"><h3>Start with a free demo</h3><p>Book a two-hour slot and use the full WAREXX software on a sample business, with no payment and no commitment.</p></div>
+      <div class="pmore__item reveal"><h3>Monthly or annual</h3><p>Pay month by month, or pay for the year: 11 months, with the 12th month free.</p></div>
+      <div class="pmore__item reveal"><h3>Grow as you need</h3><p>Need more than one warehouse or four POS counters? Add them to any plan as add-ons, billed monthly.</p></div>
+      <div class="pmore__item reveal"><h3>Taxes and currency</h3><p data-pricing-note></p></div>
+    </div>
+    <div class="pmore__cta reveal">
+      <button class="btn btn--primary" data-open="demo">Get demo trial</button>
+      <a class="btn btn--ghost" href="/">Back to WAREXX</a>
+    </div>
+  </div>
+</section>

@@ -23,6 +23,10 @@
   ],
   "rewrites": [
     {
+      "source": "/pricing",
+      "destination": "/pricing/index.html"
+    },
+    {
       "source": "/demo",
       "destination": "/demo/index.html"
     },
@@ -59,6 +63,15 @@
     },
     {
       "source": "/(index.html|landing.html)?",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/pricing(/|/index.html)?",
       "headers": [
         {
           "key": "Cache-Control",
