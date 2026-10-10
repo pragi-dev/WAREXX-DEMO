@@ -22,7 +22,7 @@ const plans = () => ({ pricing: { note: 'All prices are exclusive of GST.', plan
   { name: 'Custom', price: '', cta: 'Talk to our team', open: 'plan' },
 ] } })
 
-function visit({ tz, langs, saved, pathname = '/', page, paymentUrl }) {
+function visit({ tz, langs, saved, pathname = '/', page, paymentUrl, geo }) {
   const store = new Map(saved ? [['wrx_currency', saved]] : [])
   const RealDTF = Intl.DateTimeFormat
   const FakeIntl = Object.create(Intl)
@@ -34,12 +34,15 @@ function visit({ tz, langs, saved, pathname = '/', page, paymentUrl }) {
   const sandbox = {
     window, Intl: FakeIntl, console,
     navigator: { language: langs[0], languages: langs },
-    localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v) },
-    location: { pathname },
+    localStorage: { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) },
+    location: { pathname, protocol: geo !== undefined ? 'https:' : 'file:' },
+    fetch: geo === undefined ? undefined : async (url) => ({ ok: url === '/api/geo', json: async () => ({ country: geo }) }),
+    setTimeout, clearTimeout, AbortController,
     document: { documentElement: { dataset: page ? { page } : {} }, querySelectorAll: () => [] },
   }
   vm.createContext(sandbox)
   vm.runInContext(SRC, sandbox)
+  window.__store = store
   return window
 }
 
@@ -66,7 +69,23 @@ for (const [tz, langs, want] of [
   const w = visit({ tz, langs })
   ok(w.WRX_CUR.code() === want, `${tz || '(no time zone)'} + ${langs[0] || '(no language)'} → ${w.WRX_CUR.code()} (want ${want})`)
 }
-ok(visit({ tz: 'America/New_York', langs: ['en-US'], saved: 'EUR' }).WRX_CUR.code() === 'EUR', 'a currency picked by the visitor wins, and is remembered')
+const old = visit({ tz: 'America/New_York', langs: ['en-US'], saved: 'EUR' })
+ok(old.WRX_CUR.code() === 'USD' && !old.__store.has('wrx_currency'), 'a currency once picked by hand no longer applies, and is cleared')
+
+console.log("the visitor's location (Vercel /api/geo)")
+for (const [tz, geo, want, what] of [
+  ['Asia/Kolkata', 'AU', 'AUD', 'a laptop on Indian time, in Australia → Australian dollars'],
+  ['America/New_York', 'IN', 'INR', 'a laptop on New York time, in India → rupees'],
+  ['Asia/Kolkata', 'IN', 'INR', 'in India → rupees'],
+  ['Europe/London', 'DE', 'EUR', 'in Germany → euros'],
+  ['America/New_York', 'GH', 'USD', "a country without its own currency here → the time zone's stays"],
+  ['Asia/Dubai', '', 'AED', "no country (a local server) → the time zone's stays"],
+]) {
+  const w = visit({ tz, langs: ['en-US'], geo })
+  w.WRX_CUR.bind()
+  await new Promise((r) => setTimeout(r, 20))
+  ok(w.WRX_CUR.code() === want, `${what} (${w.WRX_CUR.code()})`)
+}
 
 console.log('converted and rounded up')
 const us = visit({ tz: 'America/New_York', langs: ['en-US'] }).WRX_CUR

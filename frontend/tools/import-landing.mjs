@@ -199,14 +199,16 @@ export function merge(html) {
 // enquiry the /pricing page sends for Monthly / Annual
 const EXTRAS = path.join(FRONTEND, 'landing', 'extras')
 const PRICING_CSS = `
-/* WAREXX: four plans (Demo, Monthly, Annual, Custom), the currency picker, /pricing */
+/* WAREXX: four plans (Demo, Monthly, Annual, Custom), the pricing note, /pricing */
 @media (min-width: 1240px) { .plans { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (min-width: 900px) and (max-width: 1239px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(14, auto); } }
 .plan:target { box-shadow: 0 0 0 2px #EE7A1E, var(--shadow); }
+/* price row: "/ month" and "+ GST" stay whole and drop below a long price,
+   rather than breaking into narrow stacked columns beside it */
+.plan__price { flex-wrap: wrap; row-gap: 4px; }
+.plan__per { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .pricing__foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 24px; margin-top: 18px; }
 .pricing__note { margin: 0; font-size: 13.5px; color: var(--mute); }
-.pricing__cur { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--mute); }
-.pricing__cur select { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 .pmore { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .pmore__item { padding: clamp(20px, 2.2vw, 28px); border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
 .pmore__item h3 { margin: 0 0 8px; font-size: 18px; }
@@ -221,9 +223,8 @@ export function mergePricing(html) {
   html = edit(html, '<script>/* js/main.js */',
     () => `<script>/* landing/extras/local-pricing.js */\n${script}</script>\n<script>/* js/main.js */`, 'pricing: script')
   html = edit(html, '<div class="plans" id="plans"></div>',
-    '<div class="plans" id="plans"></div>\n    <div class="pricing__foot"><p class="pricing__note" data-pricing-note></p>'
-    + '<label class="pricing__cur"><span>Currency</span><select data-currency aria-label="Currency"></select></label></div>',
-    'pricing: note and currency picker')
+    '<div class="plans" id="plans"></div>\n    <div class="pricing__foot"><p class="pricing__note" data-pricing-note></p></div>',
+    'pricing: note')
   html = edit(html, '    const pricing = CFG.pricing || {};\n',
     '    const pricing = CFG.pricing || {};\n    const CUR = window.WRX_CUR;   // prices in the visitor\'s currency (local-pricing.js)\n',
     'pricing: currency helper')
@@ -231,6 +232,11 @@ export function mergePricing(html) {
     '<span class="plan__amount">${CUR ? CUR.money(p.price) : esc(p.price)}</span>', 'pricing: price')
   html = edit(html, '<span class="plan__tax">${esc(p.tax)}</span>',
     '<span class="plan__tax" data-tax="${esc(p.tax)}">${esc(p.tax)}</span>', 'pricing: tax')
+  // "/ month + GST" as one piece: it moves under a long price together
+  html = edit(html,
+    '${isPh(p.period) ? \'\' : `<span class="plan__period">${esc(p.period)}</span>`}${p.tax ? `<span class="plan__tax" data-tax="${esc(p.tax)}">${esc(p.tax)}</span>` : \'\'}',
+    '<span class="plan__per">${isPh(p.period) ? \'\' : `<span class="plan__period">${esc(p.period)}</span>`}${p.tax ? `<span class="plan__tax" data-tax="${esc(p.tax)}">${esc(p.tax)}</span>` : \'\'}</span>',
+    'pricing: period and tax together')
   html = edit(html, '<article class="plan reveal${p.featured ? \' is-featured\' : \'\'}">',
     '<article class="plan reveal${p.featured ? \' is-featured\' : \'\'}"${p.slug ? ` id="plan-${esc(p.slug)}"` : \'\'}>', 'pricing: card id')
   const button = '<button class="btn ${p.featured ? \'btn--primary\' : \'btn--ghost\'} btn--block" data-open="${esc(p.open || \'plan\')}" data-interest="${esc(p.name)} plan">${esc(p.cta || \'View plan\')}</button>'
@@ -238,7 +244,9 @@ export function mergePricing(html) {
     '${p.href ? `<a class="btn ${p.featured ? \'btn--primary\' : \'btn--ghost\'} btn--block" href="${esc(p.href)}">${esc(p.cta || \'View plan\')}</a>` : `'
     + button + '`}', 'pricing: card button')
   html = edit(html, '${p.addons.map(a => `<li>${esc(a)}</li>`).join(\'\')}',
-    '${p.addons.map(a => `<li>${CUR ? CUR.money(a) : esc(a)}</li>`).join(\'\')}', 'pricing: add-ons')
+    // one <span> per line: a card's list items are flex rows, and the converted
+    // amount on its own would split "Additional POS: ₹4,999/month" into columns
+    '${p.addons.map(a => `<li><span>${CUR ? CUR.money(a) : esc(a)}</span></li>`).join(\'\')}', 'pricing: add-ons')
   html = edit(html, "const note = $('[data-pricing-note]'); if (note && pricing.note) note.textContent = pricing.note;",
     "if (CUR) CUR.bind(); else { const note = $('[data-pricing-note]'); if (note && pricing.note) note.textContent = pricing.note; }",
     'pricing: note')

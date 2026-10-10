@@ -106,7 +106,7 @@ ok(outbound.every((o) => o.method === 'GET' && o.url.startsWith(ORIGIN + '/data/
   `the worker itself only ever read its own /data/ files (${outbound.length} reads, 0 writes, 0 other hosts)`)
 {
   // respondWith not called = the browser sends it on as normal
-  for (const p of ['/api/leads', '/api/trial']) {
+  for (const p of ['/api/leads', '/api/trial', '/api/geo']) {
     let called = false
     listeners.fetch({ request: new Request(ORIGIN + p, { method: 'POST', body: '{}' }),
       respondWith: () => { called = true }, waitUntil: () => {} })

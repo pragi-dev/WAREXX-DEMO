@@ -1361,14 +1361,16 @@ html.rm .hero__copy > *, html.rm .hero__visual { opacity: 1 !important; transfor
   <script>document.documentElement.classList.add('js');</script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <style>
-/* WAREXX: four plans (Demo, Monthly, Annual, Custom), the currency picker, /pricing */
+/* WAREXX: four plans (Demo, Monthly, Annual, Custom), the pricing note, /pricing */
 @media (min-width: 1240px) { .plans { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (min-width: 900px) and (max-width: 1239px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(14, auto); } }
 .plan:target { box-shadow: 0 0 0 2px #EE7A1E, var(--shadow); }
+/* price row: "/ month" and "+ GST" stay whole and drop below a long price,
+   rather than breaking into narrow stacked columns beside it */
+.plan__price { flex-wrap: wrap; row-gap: 4px; }
+.plan__per { display: inline-flex; align-items: baseline; gap: 6px; white-space: nowrap; }
 .pricing__foot { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 24px; margin-top: 18px; }
 .pricing__note { margin: 0; font-size: 13.5px; color: var(--mute); }
-.pricing__cur { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; color: var(--mute); }
-.pricing__cur select { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; }
 .pmore { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .pmore__item { padding: clamp(20px, 2.2vw, 28px); border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
 .pmore__item h3 { margin: 0 0 8px; font-size: 18px; }
@@ -1872,7 +1874,7 @@ html.rm .hero__copy > *, html.rm .hero__visual { opacity: 1 !important; transfor
       </div>
     </header>
     <div class="plans" id="plans"></div>
-    <div class="pricing__foot"><p class="pricing__note" data-pricing-note></p><label class="pricing__cur"><span>Currency</span><select data-currency aria-label="Currency"></select></label></div>
+    <div class="pricing__foot"><p class="pricing__note" data-pricing-note></p></div>
   </div>
 </section>
 
@@ -2080,10 +2082,13 @@ window.WAREXX_CONFIG = {
    100,000) — never down, so no visitor is quoted less than the rupee price.
    Indian visitors see the rupee prices exactly as written.
 
-   THE CURRENCY comes from the visitor's own browser — its time zone first
-   (where the device is set), then its language region — so no request is
-   made and nothing about the visitor is sent anywhere. A visitor can change it
-   with the picker under the plans; the choice is remembered on that browser.
+   THE CURRENCY follows the visitor's location, with no choice to make. The
+   page opens in the currency of the browser's time zone (where the device is
+   set; then its language region), and on Vercel /api/geo then gives the
+   country Vercel located the visitor in (from their IP address — nothing is
+   stored), which wins: an Australian on a laptop set to Indian time still
+   sees Australian dollars. Off Vercel, /api/geo has no answer and the time
+   zone's currency stays.
 
    THE RATES are rupees → currency. tools/landing.mjs refreshes them from
    open.er-api.com on every build (between the RATES markers below); the values
@@ -2120,8 +2125,10 @@ window.WRX_CUR = (() => {
   EURO.forEach(c => { REGIONS[c] = 'EUR'; });
   const known = c => c === 'INR' || !!RATES[c];
 
+  // a currency picked by hand under the old picker no longer applies
+  try { localStorage.removeItem('wrx_currency'); } catch (e) { /* storage off */ }
+
   function detect() {
-    try { const saved = localStorage.getItem('wrx_currency'); if (saved && known(saved)) return saved; } catch (e) { /* storage off */ }
     let tz = '';
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* old browser */ }
     if (/^Asia\/(Kolkata|Calcutta)$/.test(tz)) return 'INR';
@@ -2164,10 +2171,9 @@ window.WRX_CUR = (() => {
   function list() { return ['INR', ...Object.keys(RATES).sort()]; }
 
   /** show every price on the page in currency `c` */
-  function apply(c, remember) {
+  function apply(c) {
     if (!known(c)) return;
     code = c;
-    if (remember) { try { localStorage.setItem('wrx_currency', c); } catch (e) { /* storage off */ } }
     document.querySelectorAll('[data-inr]').forEach(el => { el.textContent = format(+el.dataset.inr); });
     // GST is an Indian tax: "+ GST" for rupee prices, "+ taxes" elsewhere
     document.querySelectorAll('[data-tax]').forEach(el => { el.textContent = c === 'INR' ? el.dataset.tax : '+ taxes'; });
@@ -2176,17 +2182,27 @@ window.WRX_CUR = (() => {
       el.textContent = c === 'INR' ? (P.note || '')
         : `Prices in ${name(c)} (${c}), converted from Indian rupees and rounded up. Taxes as applicable.`;
     });
-    document.querySelectorAll('select[data-currency]').forEach(s => { s.value = c; });
   }
-  /** fill the currency pickers and keep them in step */
+  /** show the prices just drawn in the current currency, and ask where the
+   *  visitor is (once): the country Vercel located them in, when it differs */
+  let asked = false
   function bind() {
-    document.querySelectorAll('select[data-currency]').forEach(s => {
-      if (!s.options.length) s.innerHTML = list().map(c => `<option value="${c}">${c} · ${esc(name(c))}</option>`).join('');
-      s.value = code;
-      s.onchange = () => apply(s.value, true);
-    });
     apply(code);
+    if (asked || typeof fetch !== 'function' || !/^https?:$/.test(location.protocol || '')) return;
+    asked = true;
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const t = setTimeout(() => ctl && ctl.abort(), 4000);
+    fetch('/api/geo', { cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        const c = j && j.country ? REGIONS[String(j.country).toUpperCase()] : null;
+        if (c && known(c) && c !== code) apply(c);
+      })
+      .catch(() => { /* no answer: the time zone's currency stays */ })
+      .finally(() => clearTimeout(t));
   }
+  /** the currency for a country code (for /api/geo's answer; tests) */
+  function forCountry(cc) { const c = REGIONS[String(cc || '').toUpperCase()]; return c && known(c) ? c : null; }
 
   /* ---- the plans: a Demo card first, and where each button goes -------------
      Demo and Custom open the "Get demo trial" form. Monthly and Annual say
@@ -2227,7 +2243,7 @@ window.WRX_CUR = (() => {
     }
   }
 
-  return { code: () => code, convert, format, money, apply, bind, list, name, plansPage: PLANS_PAGE };
+  return { code: () => code, convert, format, money, apply, bind, list, name, forCountry, plansPage: PLANS_PAGE };
 })();
 </script>
 <script>/* js/main.js */
@@ -2567,7 +2583,7 @@ window.WRX_CUR = (() => {
         const tbaList = inc.length > 0 && inc.every(isPh);
         // a bracketed value is "not decided yet"; an empty one simply isn't shown
         const price = /^\s*\[/.test(p.price || '') ? '<span class="plan__tba">Announced at launch</span>'
-          : p.price ? `<span class="plan__amount">${CUR ? CUR.money(p.price) : esc(p.price)}</span>${isPh(p.period) ? '' : `<span class="plan__period">${esc(p.period)}</span>`}${p.tax ? `<span class="plan__tax" data-tax="${esc(p.tax)}">${esc(p.tax)}</span>` : ''}`
+          : p.price ? `<span class="plan__amount">${CUR ? CUR.money(p.price) : esc(p.price)}</span><span class="plan__per">${isPh(p.period) ? '' : `<span class="plan__period">${esc(p.period)}</span>`}${p.tax ? `<span class="plan__tax" data-tax="${esc(p.tax)}">${esc(p.tax)}</span>` : ''}</span>`
           : '';
         const sum = /^\s*\[/.test(p.summary || '') ? bar(80) : esc(p.summary || '');
         return `
@@ -2579,7 +2595,7 @@ window.WRX_CUR = (() => {
           ${p.href ? `<a class="btn ${p.featured ? 'btn--primary' : 'btn--ghost'} btn--block" href="${esc(p.href)}">${esc(p.cta || 'View plan')}</a>` : `<button class="btn ${p.featured ? 'btn--primary' : 'btn--ghost'} btn--block" data-open="${esc(p.open || 'plan')}" data-interest="${esc(p.name)} plan">${esc(p.cta || 'View plan')}</button>`}
           ${inc.length ? `<div class="plan__inc"><p class="plan__inc-k">What’s included${tbaList ? ' <span>· details at launch</span>' : ''}</p>
             <ul>${inc.map((i, n) => `<li>${check}${isPh(i) ? bar(widths[n % widths.length]) : `<span>${esc(i)}</span>`}</li>`).join('')}</ul></div>` : ''}
-          ${(p.addons || []).length ? `<div class="plan__add"><p class="plan__inc-k">Add-ons</p><ul>${p.addons.map(a => `<li>${CUR ? CUR.money(a) : esc(a)}</li>`).join('')}</ul></div>` : ''}
+          ${(p.addons || []).length ? `<div class="plan__add"><p class="plan__inc-k">Add-ons</p><ul>${p.addons.map(a => `<li><span>${CUR ? CUR.money(a) : esc(a)}</span></li>`).join('')}</ul></div>` : ''}
         </article>`;
       }).join('');
     }

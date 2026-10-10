@@ -10,10 +10,13 @@
    100,000) — never down, so no visitor is quoted less than the rupee price.
    Indian visitors see the rupee prices exactly as written.
 
-   THE CURRENCY comes from the visitor's own browser — its time zone first
-   (where the device is set), then its language region — so no request is
-   made and nothing about the visitor is sent anywhere. A visitor can change it
-   with the picker under the plans; the choice is remembered on that browser.
+   THE CURRENCY follows the visitor's location, with no choice to make. The
+   page opens in the currency of the browser's time zone (where the device is
+   set; then its language region), and on Vercel /api/geo then gives the
+   country Vercel located the visitor in (from their IP address — nothing is
+   stored), which wins: an Australian on a laptop set to Indian time still
+   sees Australian dollars. Off Vercel, /api/geo has no answer and the time
+   zone's currency stays.
 
    THE RATES are rupees → currency. tools/landing.mjs refreshes them from
    open.er-api.com on every build (between the RATES markers below); the values
@@ -50,8 +53,10 @@ window.WRX_CUR = (() => {
   EURO.forEach(c => { REGIONS[c] = 'EUR'; });
   const known = c => c === 'INR' || !!RATES[c];
 
+  // a currency picked by hand under the old picker no longer applies
+  try { localStorage.removeItem('wrx_currency'); } catch (e) { /* storage off */ }
+
   function detect() {
-    try { const saved = localStorage.getItem('wrx_currency'); if (saved && known(saved)) return saved; } catch (e) { /* storage off */ }
     let tz = '';
     try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { /* old browser */ }
     if (/^Asia\/(Kolkata|Calcutta)$/.test(tz)) return 'INR';
@@ -94,10 +99,9 @@ window.WRX_CUR = (() => {
   function list() { return ['INR', ...Object.keys(RATES).sort()]; }
 
   /** show every price on the page in currency `c` */
-  function apply(c, remember) {
+  function apply(c) {
     if (!known(c)) return;
     code = c;
-    if (remember) { try { localStorage.setItem('wrx_currency', c); } catch (e) { /* storage off */ } }
     document.querySelectorAll('[data-inr]').forEach(el => { el.textContent = format(+el.dataset.inr); });
     // GST is an Indian tax: "+ GST" for rupee prices, "+ taxes" elsewhere
     document.querySelectorAll('[data-tax]').forEach(el => { el.textContent = c === 'INR' ? el.dataset.tax : '+ taxes'; });
@@ -106,17 +110,27 @@ window.WRX_CUR = (() => {
       el.textContent = c === 'INR' ? (P.note || '')
         : `Prices in ${name(c)} (${c}), converted from Indian rupees and rounded up. Taxes as applicable.`;
     });
-    document.querySelectorAll('select[data-currency]').forEach(s => { s.value = c; });
   }
-  /** fill the currency pickers and keep them in step */
+  /** show the prices just drawn in the current currency, and ask where the
+   *  visitor is (once): the country Vercel located them in, when it differs */
+  let asked = false
   function bind() {
-    document.querySelectorAll('select[data-currency]').forEach(s => {
-      if (!s.options.length) s.innerHTML = list().map(c => `<option value="${c}">${c} · ${esc(name(c))}</option>`).join('');
-      s.value = code;
-      s.onchange = () => apply(s.value, true);
-    });
     apply(code);
+    if (asked || typeof fetch !== 'function' || !/^https?:$/.test(location.protocol || '')) return;
+    asked = true;
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const t = setTimeout(() => ctl && ctl.abort(), 4000);
+    fetch('/api/geo', { cache: 'no-store', signal: ctl ? ctl.signal : undefined })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        const c = j && j.country ? REGIONS[String(j.country).toUpperCase()] : null;
+        if (c && known(c) && c !== code) apply(c);
+      })
+      .catch(() => { /* no answer: the time zone's currency stays */ })
+      .finally(() => clearTimeout(t));
   }
+  /** the currency for a country code (for /api/geo's answer; tests) */
+  function forCountry(cc) { const c = REGIONS[String(cc || '').toUpperCase()]; return c && known(c) ? c : null; }
 
   /* ---- the plans: a Demo card first, and where each button goes -------------
      Demo and Custom open the "Get demo trial" form. Monthly and Annual say
@@ -157,5 +171,5 @@ window.WRX_CUR = (() => {
     }
   }
 
-  return { code: () => code, convert, format, money, apply, bind, list, name, plansPage: PLANS_PAGE };
+  return { code: () => code, convert, format, money, apply, bind, list, name, forCountry, plansPage: PLANS_PAGE };
 })();

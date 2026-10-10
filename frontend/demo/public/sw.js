@@ -36,9 +36,10 @@ const shape = (p) => p.replace(/\/\d+(?=\/|$)/g, '/:n').replace(/\/[0-9a-f]{8,}(
 
 // The two real endpoints on a site that serves the landing page and the demo
 // together (npm run build:site): /api/leads (the landing forms; sends an email)
-// and /api/trial (the demo's sign-up / sign-in for a booked slot). Neither is
-// part of the recording, and nothing of the demo's data goes to either.
-const REAL = new Set(['/api/leads', '/api/trial'])
+// and /api/trial (the demo's sign-up / sign-in for a booked slot), plus /api/geo
+// (the landing page's visitor country, for prices in their currency). None is
+// part of the recording, and nothing of the demo's data goes to any of them.
+const REAL = new Set(['/api/leads', '/api/trial', '/api/geo'])
 const ours = (url) => url.origin === self.location.origin && !REAL.has(url.pathname) &&
   (url.pathname.startsWith('/api/') || url.pathname === '/api' || url.pathname.startsWith('/pos'))
 
