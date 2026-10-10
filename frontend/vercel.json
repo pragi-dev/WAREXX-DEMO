@@ -7,7 +7,7 @@
   "rewrites": [
     { "source": "/m", "destination": "/m/index.html" },
     { "source": "/m/(.*)", "destination": "/m/index.html" },
-    { "source": "/((?!api/|pos|data/|assets/|sw\.js).*)", "destination": "/index.html" }
+    { "source": "/((?!api/|pos|data/|assets/|sw\\.js).*)", "destination": "/index.html" }
   ],
   "headers": [
     {
