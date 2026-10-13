@@ -165,7 +165,7 @@
     try {
       const s = await call({ action: 'summary' });
       const box = $('stats'); box.innerHTML = '';
-      [['Leads', s.leads], ['Free trials', s.trials], ['Signed up', s.signed_up], ['Finished the tour', s.tour_completed], ['Email not sent', s.email_failed]]
+      [['Contacts', s.contacts], ['Leads', s.leads], ['Free trials', s.trials], ['Signed up', s.signed_up], ['Finished the tour', s.tour_completed], ['Email not sent', s.email_failed]]
         .forEach(([k, v]) => { const c = el('div', 'card stat'); c.append(el('small', '', k), el('b', '', String(v))); box.append(c); });
       $('dbnote').textContent = s.database === 'sqlite' ? 'Storage: a local SQLite file (no POSTGRES_URL set on this server).' : 'Storage: PostgreSQL.';
     } catch (e) { /* the table shows the problem */ }

@@ -314,6 +314,11 @@ export const api = {
   changePassword: (current_password, new_password) => fetch('/api/auth/change-password', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ current_password, new_password }) }).then(J),
+  // My profile — anyone's own account (name, job title, email, phone, recent activity)
+  getProfile: () => fetch('/api/auth/profile').then(J),
+  saveProfile: (body) => fetch('/api/auth/profile', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) }).then(J),
 
   // users — super admin only; the server refuses these for anyone else
   listUsers: () => fetch('/api/users').then(J),

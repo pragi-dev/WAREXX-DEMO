@@ -9,6 +9,7 @@ Nothing here can reach WAREXX: no database driver is imported, no WAREXX URL or
 credential is read. GET, PUT, PATCH and DELETE are refused.
 """
 import json
+import os
 import threading
 import time
 from collections import defaultdict, deque
@@ -103,6 +104,10 @@ class LeadHandler(BaseHTTPRequestHandler):
         return [self.headers.get("X-Forwarded-Host") or "", self.headers.get("Host") or ""]
 
     def _ip(self):
+        # behind a Cloudflare Tunnel (the local server put online, LEAD_TRUST_CF=1)
+        # Cloudflare itself sets CF-Connecting-IP; anywhere else it is not trusted
+        if os.environ.get("LEAD_TRUST_CF") == "1" and self.headers.get("CF-Connecting-IP"):
+            return self.headers["CF-Connecting-IP"].strip()
         return (self.headers.get("X-Forwarded-For") or "").split(",")[0].strip() or self.client_address[0]
 
     def do_POST(self):
@@ -143,9 +148,11 @@ class LeadHandler(BaseHTTPRequestHandler):
         if done:
             out = dict(done["out"])
             if not out.get("email_sent") and done.get("access"):     # the first email failed: try again
-                out["email_sent"] = lead_mail.send_trial(done["lead"], done["access"])
+                out["email_sent"] = lead_mail.send_trial(done["lead"], done["access"], done.get("password"))
                 _booking(key, {**done, "out": out})
                 store.trial_email(out["trial"]["ref"], out["email_sent"])
+                store.log_email("trial", lead["email"], out["trial"]["ref"], out["email_sent"],
+                                bool(done.get("password")), lead_mail.MAIL_BACKEND)
             return out
         try:
             t = trial.ticket(lead["email"], lead["slot"], name=lead["name"])
@@ -156,13 +163,27 @@ class LeadHandler(BaseHTTPRequestHandler):
         access = trial.access_url(t["ticket"], self._hosts())
         if not access:
             print("[lead api] no demo address for the trial email's link: set DEMO_PUBLIC_URL", flush=True)
-        sent = lead_mail.send_trial(lead, access) if access else False
-        out = {"ok": True, "trial": t, "email_sent": sent}
-        _booking(key, {"out": out, "lead": lead, "access": access})
+        # emailed login details (DEMO_EMAIL_PASSWORD): the password's hash must be
+        # in the database before the email goes — if it cannot be kept, the email
+        # carries the sign-up link only (choose a password), which always works
+        password = None
+        if trial.credentials_on():
+            pw = trial.new_password()
+            if store.record_trial(t["ref"], lead, t["start"], t["end"], t["window"], False, pw=trial.password_record(pw)):
+                password = pw
+            else:
+                print("[lead api] the database is unavailable: this trial email has no password", flush=True)
+        sent = lead_mail.send_trial(lead, access, password) if access else False
+        out = {"ok": True, "trial": {**t, "credentials": bool(password)}, "email_sent": sent}
+        _booking(key, {"out": out, "lead": lead, "access": access, "password": password})
         # the trial and the form that asked for it, kept (store.py) — after the
         # email, and never in its way
-        store.record_trial(t["ref"], lead, t["start"], t["end"], t["window"], sent)
+        if password:
+            store.trial_email(t["ref"], sent)
+        else:
+            store.record_trial(t["ref"], lead, t["start"], t["end"], t["window"], sent)
         store.record_lead(lead, trial_ref=t["ref"], email_sent=sent)
+        store.log_email("trial", lead["email"], t["ref"], sent, bool(password), lead_mail.MAIL_BACKEND)
         if self.send_in_background:
             threading.Thread(target=lead_mail.send_notify, args=(lead,), daemon=True).start()
         else:
@@ -179,8 +200,16 @@ class LeadHandler(BaseHTTPRequestHandler):
             return self._answer(429, {"detail": "too_many_attempts"})
         access = trial.access_url(ticket_token, self._hosts())
         lead = {"name": d["name"], "email": d["email"], "trial_window": d["window"], "trial_minutes": d["minutes"]}
-        sent = lead_mail.send_trial(lead, access) if access else False
+        # emailed login details: a new password (only its hash is kept, so the old
+        # one cannot be sent again); it replaces the old one
+        password = None
+        if trial.credentials_on() and access:
+            pw = trial.new_password()
+            if store.trial_password(d.get("ref"), trial.password_record(pw)):
+                password = pw
+        sent = lead_mail.send_trial(lead, access, password) if access else False
         store.trial_email(d.get("ref"), sent)
+        store.log_email("resend", d["email"], d.get("ref"), sent, bool(password), lead_mail.MAIL_BACKEND)
         return self._answer(200, {"ok": True, "email_sent": sent})
 
     def _trial(self, raw):
@@ -193,12 +222,18 @@ class LeadHandler(BaseHTTPRequestHandler):
         if isinstance(data, dict) and data.get("action") == "resend":
             return self._resend(data.get("ticket"))
         try:
-            result = trial.handle(raw)
+            if isinstance(data, dict) and data.get("action") == "signin":
+                result = self._signin(data)
+            else:
+                result = trial.handle(raw)
         except trial.TrialError as e:
             return self._answer(e.status, {"detail": e.detail, **e.extra})
         # what happened to the trial, kept against it (store.py)
         action, ref = (data or {}).get("action"), result.get("ref")
-        if ref and action == "signup":
+        if ref and action == "signin":                      # the emailed password: the first one signs up
+            store.trial_signed_up(ref)
+            store.trial_logged_in(ref)
+        elif ref and action == "signup":
             store.trial_signed_up(ref)
         elif ref and action == "login":
             store.trial_logged_in(ref)
@@ -208,6 +243,24 @@ class LeadHandler(BaseHTTPRequestHandler):
             result["tour_state"] = store.tour_state(ref)      # the tour, remembered for this user
         result.pop("ref", None)                               # internal; the browser does not need it
         return self._answer(200, result)
+
+    def _signin(self, data):
+        """Email + the emailed password (DEMO_EMAIL_PASSWORD), against the database."""
+        if not trial.credentials_on():
+            raise trial.TrialError(400, "bad_request")
+        trial._secret()                                       # 503 when the trial is not set up
+        try:
+            rows = store.trial_logins(data.get("email"))
+        except Exception as exc:                              # noqa: BLE001
+            print(f"[lead api] sign-in: database unavailable: {type(exc).__name__}", flush=True)
+            raise trial.TrialError(503, "database_unavailable")
+        try:
+            result = trial.signin(rows, data.get("email"), data.get("password"))
+        except trial.TrialError as e:                         # kept: who tried, and why it failed
+            store.log_signin(data.get("email"), None, False, e.detail)
+            raise
+        store.log_signin(data.get("email"), result.get("ref"), True)
+        return result
 
     def _admin(self, raw):
         try:

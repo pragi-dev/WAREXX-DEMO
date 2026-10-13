@@ -96,7 +96,7 @@ os.environ["DEMO_TRIAL_SECRET"] = "a-different-secret-entirely-xyz"
 eq("a pass signed with another secret is refused", err(lambda: trial.verify(s["session"], NOW + 601)), (401, "invalid_pass"))
 os.environ["DEMO_TRIAL_SECRET"] = ""
 eq("…and the status check says so, so the demo opens without a sign-up",
-   trial.handle(b'{"action": "status"}'), {"configured": False})
+   trial.handle(b'{"action": "status"}'), {"configured": False, "credentials": False})
 eq("without a secret the trial says it is not set up", err(lambda: trial.ticket("v@example.com", "now", NOW)),
    (503, "trial_not_configured"))
 

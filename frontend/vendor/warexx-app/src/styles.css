@@ -5670,3 +5670,45 @@ table.items td.qrcell > span { display: inline-flex; border-radius: 8px; overflo
   margin: 0 var(--gutter) var(--gutter); border: 1px solid var(--line); border-radius: 16px;
   overflow: hidden; background: var(--panel); box-shadow: var(--shadow-1); }
 .screen > .body > .screenbody.tight { padding: 4px 20px 20px 20px; }
+
+/* ---------------------------------------------------------------------------
+   My profile (user menu → My profile): the signed-in person's own account.
+   WAREXX 2: white 16px card on a dim scrim, black avatar, orange primary.
+   --------------------------------------------------------------------------- */
+.prof-scrim { position: fixed; inset: 0; z-index: 100; background: rgba(20, 20, 20, .45);
+  display: flex; align-items: flex-start; justify-content: center; padding: 6vh 16px; overflow-y: auto; }
+.prof-card { width: 640px; max-width: 100%; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 16px; box-shadow: var(--shadow-3); overflow: hidden; }
+.prof-head { display: flex; align-items: center; gap: 16px; padding: 22px 24px;
+  background: linear-gradient(135deg, #1A1A1A 0%, #141414 60%, #2A1A0E 100%); color: #fff; }
+.prof-head .th-avatar.xl { width: 60px; height: 60px; font-size: 20px; flex: none;
+  background: linear-gradient(135deg, #F28A2E, #DC5F14); color: #fff; }
+.prof-who { min-width: 0; flex: 1; }
+.prof-who h2 { margin: 0; font-size: 20px; font-weight: 700; color: #fff; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prof-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; color: rgba(255, 255, 255, .72); }
+.prof-head .prof-x { flex: none; padding: 2px 10px; background: rgba(255, 255, 255, .1); border-color: rgba(255, 255, 255, .18); color: #fff; }
+.prof-body { padding: 8px 24px 24px; }
+.prof-section { margin: 18px 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.prof-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.prof-grid .field { margin-bottom: 10px; }
+.prof-err { margin: 4px 0 8px; font-size: 13px; color: var(--danger); }
+.prof-actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.prof-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.prof-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.prof-facts > div { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel-2); min-width: 0; }
+.prof-facts dt { font-size: 11.5px; color: var(--muted); }
+.prof-facts dd { margin: 3px 0 0; font-size: 14px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prof-note { margin-top: 10px; font-size: 12.5px; line-height: 1.5; color: var(--text-2); }
+.prof-acts { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.prof-acts li { display: flex; align-items: baseline; gap: 12px; padding: 9px 12px; font-size: 13px; color: var(--text); }
+.prof-acts li + li { border-top: 1px solid var(--line); }
+.prof-acts li.bad .prof-act-tx { color: var(--danger); }
+.prof-act-tx { flex: 1; min-width: 0; }
+.prof-act-tx small { color: var(--muted); }
+.prof-act-at { flex: none; font-size: 12px; color: var(--muted); }
+@media (max-width: 600px) {
+  .prof-scrim { padding: 0; }
+  .prof-card { border-radius: 0; min-height: 100%; }
+  .prof-grid { grid-template-columns: 1fr; }
+  .prof-facts { grid-template-columns: 1fr 1fr; }
+}

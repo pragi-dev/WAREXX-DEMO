@@ -101,7 +101,7 @@ ready().then(async () => {
   document.body.classList.add('wxdemo')
   root.render(
     <React.StrictMode>
-      <App /><Banner />{open && <TrialWatch end={open.end} skew={open.skew} />}
+      <App /><Banner />{open && <TrialWatch end={open.end} skew={open.skew} subscriber={open.subscriber} />}
       {/* the guided tour, the first time this demo user opens WAREXX (tour.jsx) */}
       <TourHost user={trialUser()} warehouse={START.warehouse} serverState={open?.tourState} onSave={reportTour} />
     </React.StrictMode>)

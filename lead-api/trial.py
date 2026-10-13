@@ -34,6 +34,13 @@ in its #fragment: the same expiring, email-bound pass the form hands the browser
 so the visitor can open the demo from their inbox, on any device, until the end
 of their window. It sets up a password of their choice there; no password is
 ever sent by email.
+
+Or, with DEMO_EMAIL_PASSWORD=1 (a server with the leads database, e.g. the local
+one — store.py): the server makes a temporary password for each trial, keeps
+only its salted hash in the database, and emails the login email + password +
+the demo link. The visitor then signs in with them (action "signin") on any
+device; the password works only inside the trial's window, and a resent email
+carries a new one (the old one stops working).
 """
 import base64
 import datetime as dt
@@ -183,6 +190,58 @@ def resend_details(ticket_token, now=None):
             "window": describe(t["s"], t["x"]), "minutes": WINDOW // 60}
 
 
+def credentials_on():
+    """Emailed login details (a generated password) instead of a password the
+    visitor chooses. Needs the leads database: on by default wherever a
+    PostgreSQL database is set (store.py), off otherwise; DEMO_EMAIL_PASSWORD=1/0
+    decides it either way."""
+    v = (os.environ.get("DEMO_EMAIL_PASSWORD") or "").strip().lower()
+    if v:
+        return v in ("1", "true", "yes", "on")
+    import store                                   # the leads database (store.py)
+    return bool(store.database_url())
+
+
+#: No 0/O, 1/l/I: the password is read from an email and typed.
+_PW_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789"
+
+
+def new_password():
+    """A temporary password for one trial: 12 random characters (~70 bits), as
+    three groups of four so it is easy to type from the email."""
+    raw = "".join(secrets.choice(_PW_CHARS) for _ in range(12))
+    return "-".join(raw[i:i + 4] for i in range(0, 12, 4))
+
+
+def password_record(password):
+    """(salt, hash) to keep in the database; the password itself is never kept."""
+    salt = secrets.token_hex(16)
+    return salt, _hash(password, salt)
+
+
+def signin(rows, email, password, now=None):
+    """Email + the password from the email. `rows`: that email's trials from the
+    database (store.trial_logins), newest first. The password must match one of
+    them, and that trial's window must not be over."""
+    now = time.time() if now is None else now
+    email, password = str(email or "").strip().lower(), str(password or "")
+    if not rows:
+        _hash(password, "00" * 16)               # the same time whether or not the email is known
+        raise TrialError(401, "wrong_password")
+    hit = [r for r in rows if r.get("pw_salt") and r.get("pw_hash")
+           and hmac.compare_digest(_hash(password, r["pw_salt"]), r["pw_hash"])]
+    if not hit:
+        raise TrialError(401, "wrong_password")
+    live = [r for r in hit if now < int(r["window_end"])]
+    if not live:
+        raise TrialError(403, "expired", end=int(hit[0]["window_end"]))
+    r = live[0]
+    p = {"e": email, "s": int(r["window_start"]), "x": int(r["window_end"]), "n": r["ref"]}
+    if r.get("kind") == "sub":                 # a subscriber's account (subscribe.py), not a trial
+        p["p"] = "sub"
+    return _session(p)
+
+
 def _hash(password, salt):
     return hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), PBKDF2_ROUNDS).hex()
 
@@ -196,8 +255,12 @@ def _window_check(p, now):
 
 def _session(p):
     # "n": the trial's reference (from its ticket), so the server can tell which
-    # trial a sign-in or a finished tour belongs to (store.py)
-    return {"session": sign({"k": "s", "e": p["e"], "s": p["s"], "x": p["x"], "n": p.get("n", "")}),
+    # trial a sign-in or a finished tour belongs to (store.py); "p": "sub" for a
+    # subscriber (subscribe.py), whose demo shows no countdown
+    s = {"k": "s", "e": p["e"], "s": p["s"], "x": p["x"], "n": p.get("n", "")}
+    if p.get("p"):
+        s["p"] = p["p"]
+    return {"session": sign(s),
             "email": p["e"], "start": p["s"], "end": p["x"], "window": describe(p["s"], p["x"]),
             "ref": p.get("n", "")}
 
@@ -232,7 +295,8 @@ def verify(session_token, now=None):
     now = time.time() if now is None else now
     s = unsign(session_token, "s")
     _window_check(s, now)
-    return {"ok": True, "email": s["e"], "end": s["x"], "now": int(now), "ref": s.get("n", "")}
+    return {"ok": True, "email": s["e"], "end": s["x"], "now": int(now), "ref": s.get("n", ""),
+            "subscriber": s.get("p") == "sub"}
 
 
 TOUR_STATES = ("completed", "skipped")
@@ -255,7 +319,7 @@ def handle(raw):
         raise TrialError(400, "bad_request")
     action = data.get("action")
     if action == "status":             # is the sign-up set up on this deployment?
-        return {"configured": configured()}
+        return {"configured": configured(), "credentials": configured() and credentials_on()}
     if action == "signup":
         return signup(data.get("ticket"), data.get("password"))
     if action == "login":

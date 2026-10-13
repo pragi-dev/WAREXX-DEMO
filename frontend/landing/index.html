@@ -2802,6 +2802,7 @@ window.WRX_CUR = (() => {
     const mins = (t && t.minutes) || 120;
     const len = mins % 60 === 0 && mins >= 120 ? (mins / 60) + ' hours' : mins + ' minutes';
     const msg = !t ? 'Thank you — we’ve received your request.'
+      : r.email_sent && t.credentials ? `We’ve emailed your login details (email and password) and the demo link to <b>${esc(email)}</b>.`
       : r.email_sent ? `We’ve sent your access link and login instructions to <b>${esc(email)}</b>.`
       : `We couldn’t send the email to <b>${esc(email)}</b> just now. You can open the demo below, or send the email again.`;
     const box = document.createElement('div');
@@ -2880,6 +2881,9 @@ window.WRX_CUR = (() => {
             return;
           }
           restore();
+          // the trial is booked and its password emailed: straight on to the
+          // demo's sign-in, the email already filled in
+          if (r && r.trial && r.trial.ticket) { openSignup(r.trial); return; }
           showTrialReady(form, r || {}, payload.email);
           return;
         }

@@ -68,8 +68,7 @@ def rows(sql, params=()):
 
 print(f"database: {store.kind()}" + (" (" + PG.split("@")[-1] + ")" if PG else ""))
 if PG:                                     # a fresh start on the test database
-    store.run("DROP TABLE IF EXISTS leads"); store.run("DROP TABLE IF EXISTS trials")
-    store._ready.clear()
+    store.reset()
 
 print("every form is kept")
 code, _ = post("/api/leads", {"type": "brochure", "name": "Meena", "email": "Meena@Example.com", "phone": "9999988888", "company": "M Co"})

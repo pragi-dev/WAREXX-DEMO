@@ -84,6 +84,28 @@ See [.env.example](.env.example). Two kinds, kept apart:
 The demo has no database. Nothing here knows the production database URL,
 auth secret, or any API key, and nothing should.
 
+## Run it on this computer (emails with login details)
+
+`run_local.bat` (or `node frontend/tools/run-local.mjs`) runs the whole
+website here, online through a free Cloudflare Tunnel:
+
+- the landing page, the demo and `/admin`, with the **leads database on this
+  computer** (`lead-api/data/leads.db`);
+- every free trial is **emailed the demo link, the login email and a temporary
+  password** (`DEMO_EMAIL_PASSWORD=1`): only the password's hash is kept, it
+  works only during the trial, and "Send a new password" replaces it. The
+  visitor signs in with them on any device;
+- emails go out through the mailbox in `.env` (Gmail: an App Password, see
+  `.env.example`); without it they are saved in `lead-api/outbox`.
+
+Once: `winget install --id Cloudflare.cloudflared`, then copy `.env.example`
+to `.env` and fill in the Gmail lines. The window prints the public address
+(`https://<random>.trycloudflare.com`); it changes on every start, so use a
+named tunnel (`CLOUDFLARE_TUNNEL_TOKEN` + `DEMO_PUBLIC_URL`) for a fixed one.
+Visitors can only reach the site while this computer and the window are on.
+`--no-tunnel` runs it for this computer only. Test:
+`python lead-api/credentials_test.py`.
+
 ## Leads database and admin
 
 Every form sent from the landing page (contact, demo, brochure, plan enquiry…)

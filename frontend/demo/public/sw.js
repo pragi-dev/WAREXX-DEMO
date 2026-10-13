@@ -254,6 +254,21 @@ async function answer(req, url) {
     || pick(m.byShape.get(`${method} ${wh} ${shape(path)}`), url)
     || pick(m.byShape.get(`${method} * ${shape(path)}`), url)
   if (hit) return replay(hit)
+  // My profile (user menu): the Sample Admin's account; what the visitor edits
+  // is kept by this worker for the visit, like every other save in the demo.
+  if (path === '/api/auth/profile') {
+    if (method === 'PUT') {
+      let b = {}
+      try { b = await req.clone().json() } catch { /* empty */ }
+      const name = String(b.full_name || '').trim().replace(/\s+/g, ' ')
+      if (!name) return json({ detail: 'Your name cannot be empty' }, 400)
+      Object.assign(PROFILE, { full_name: name.slice(0, 80), job_title: String(b.job_title || '').trim().slice(0, 80),
+        email: String(b.email || '').trim().toLowerCase().slice(0, 254), phone: String(b.phone || '').trim().slice(0, 20) })
+      PROFILE.recent = [{ at: new Date().toISOString(), action: 'modify', screen: 'session', outcome: 'ok',
+        summary: 'updated their profile (demo — resets when the demo restarts)', warehouse: '' }, ...PROFILE.recent].slice(0, 8)
+    }
+    return json(PROFILE)
+  }
   // Signing in never depends on the recording: whatever is typed, the visitor is
   // the demo's Sample Admin. (A recorded answer, above, wins when there is one.)
   if (AUTH[path]) return json(AUTH[path])
@@ -308,6 +323,15 @@ const AUTH = {
     full_name: 'Sample Admin', active: true, permissions: {} },
   '/api/auth/logout': { ok: true },
 }
+const PROFILE = { id: 1, username: 'superadmin', role: 'superadmin', role_label: 'Super Admin',
+  full_name: 'Sample Admin', job_title: 'Operations head', email: 'admin@sample-business.example', phone: '+91 90000 00000',
+  active: true, permissions: {}, created_by: 'system',
+  created_at: new Date(Date.now() - 90 * 86400000).toISOString(), last_login_at: new Date().toISOString(),
+  recent: [
+    { at: new Date(Date.now() - 2 * 60000).toISOString(), action: 'signin', screen: 'session', outcome: 'ok', summary: 'signed in', warehouse: '' },
+    { at: new Date(Date.now() - 26 * 3600000).toISOString(), action: 'create', screen: 'grn', outcome: 'ok', summary: 'posted a GRN — 120 units received', warehouse: 'Sample Warehouse A' },
+    { at: new Date(Date.now() - 50 * 3600000).toISOString(), action: 'create', screen: 'purchases', outcome: 'ok', summary: 'raised a purchase order to a supplier', warehouse: 'Sample Warehouse A' },
+  ] }
 
 let nextId = 90000
 async function acknowledgeWrite(req, path, meta) {

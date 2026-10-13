@@ -185,7 +185,7 @@ const walk = (dir, skip) => readdirSync(dir).flatMap((n) => {
   return statSync(f).isDirectory() ? walk(f, skip) : [f]
 })
 const files = walk(LD, [`${path.sep}node_modules`, `${path.sep}demo-build`, `${path.sep}.record-profile`,
-  `${path.sep}outbox`, `${path.sep}archive`])
+  `${path.sep}outbox`, `${path.sep}archive`, `${path.sep}pgdata`, `${path.sep}venv`])
   .filter((f) => !/\.(png|webp|jpg|jpeg|gif|ico|pdf|db)$/i.test(f) && path.basename(f) !== '.env')
 // values the production app holds — read here, never printed
 const secretValues = []

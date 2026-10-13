@@ -97,7 +97,7 @@ function LoginScreen({ onLogin }) {
         window.location.replace('/')
         return
       }
-      onLogin(r.token, r.user, r.role, r.permissions)
+      onLogin(r.token, r.user, r.role, r.permissions, r.full_name)
     } catch (e) { setErr(e.detail || 'Login failed'); setBusy(false) }
   }
   // a password typed with Caps Lock on is the commonest failed sign-in, and
@@ -13917,6 +13917,135 @@ function ChangePassword({ onClose, toast }) {
 }
 
 // ==========================================================================
+//  My profile — the signed-in person's own account, from the user menu
+//  ------------------------------------------------------------------------
+//  Name, job title, email and phone are theirs to edit (PUT /api/auth/profile);
+//  the username and the role are not — those stay with the super admin in
+//  Users & Access, which is what the read-only facts say. Recent activity is
+//  their own slice of the audit trail, so "what did I do this morning" has an
+//  answer without the admin-only Activity screen.
+// ==========================================================================
+function MyProfile({ onClose, toast, onPassword, onSaved, companyName, perms }) {
+  const [p, setP] = useState(null)
+  const [form, setForm] = useState({ full_name: '', job_title: '', email: '', phone: '' })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    let live = true
+    api.getProfile()
+      .catch(() => fetch('/api/auth/me').then((r) => (r.ok ? r.json() : Promise.reject())))   // an older server
+      .then((r) => {
+        if (!live) return
+        setP(r)
+        setForm({ full_name: r.full_name || '', job_title: r.job_title || '', email: r.email || '', phone: r.phone || '' })
+      })
+      .catch(() => live && setErr('Could not load your profile.'))
+    return () => { live = false }
+  }, [])
+  useEffect(() => {
+    const esc = (e) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [onClose])
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+  const dirty = p && ['full_name', 'job_title', 'email', 'phone'].some((k) => (form[k] || '').trim() !== (p[k] || ''))
+  const save = async (e) => {
+    e.preventDefault()
+    if (!form.full_name.trim()) { setErr('Your name cannot be empty.'); return }
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) { setErr('That email address does not look right.'); return }
+    setErr(''); setBusy(true)
+    try {
+      const r = await api.saveProfile({ full_name: form.full_name, job_title: form.job_title, email: form.email, phone: form.phone })
+      const next = r && r.username ? r : { ...p, ...form }        // the demo answers with a plain "saved"
+      setP(next)
+      setForm({ full_name: next.full_name || '', job_title: next.job_title || '', email: next.email || '', phone: next.phone || '' })
+      onSaved && onSaved(next)
+      toast('✓ Profile saved', 'ok')
+    } catch (e2) { setErr(e2.detail || 'Could not save your profile.') }
+    setBusy(false)
+  }
+
+  const restricted = perms && Object.keys(perms).some((k) => perms[k] && (Array.isArray(perms[k]) ? perms[k].length : Object.keys(perms[k]).length))
+  const name = (p && (p.full_name || p.username)) || ''
+  const facts = p ? [
+    ['Username', p.username], ['Role', p.role_label || ROLE_LABEL[p.role] || p.role], ['Company', companyName || '—'],
+    ['Member since', p.created_at ? fmtDate(p.created_at) : '—'],
+    ['Last sign-in', p.last_login_at ? fmtDate(p.last_login_at) : 'Not recorded'],
+    ['Account created by', p.created_by || '—'],
+  ] : []
+
+  return (
+    <div className="prof-scrim" onClick={onClose}>
+      <div className="prof-card" role="dialog" aria-modal="true" aria-labelledby="prof-title" onClick={(e) => e.stopPropagation()}>
+        <div className="prof-head">
+          <span className="th-avatar xl" aria-hidden="true">{initialsOf(name)}</span>
+          <div className="prof-who">
+            <h2 id="prof-title">{name || 'My profile'}</h2>
+            <div className="prof-sub">
+              {p && <span className={'badge role-' + p.role}>{p.role_label || ROLE_LABEL[p.role] || p.role}</span>}
+              {p && p.job_title && <span>{p.job_title}</span>}
+              {companyName && <span>· {companyName}</span>}
+            </div>
+          </div>
+          <button className="btn prof-x" aria-label="Close" onClick={onClose}>×</button>
+        </div>
+
+        {!p && !err && <div className="prof-body"><div className="small" style={{ color: 'var(--text-2)' }}>Loading…</div></div>}
+        {p && (
+          <div className="prof-body">
+            <form onSubmit={save}>
+              <div className="prof-section">Your details</div>
+              <div className="prof-grid">
+                <div className="field"><label>Full name</label>
+                  <input value={form.full_name} onChange={set('full_name')} autoComplete="name" maxLength={80} required /></div>
+                <div className="field"><label>Job title</label>
+                  <input value={form.job_title} onChange={set('job_title')} placeholder="e.g. Store manager" maxLength={80} /></div>
+                <div className="field"><label>Email</label>
+                  <input type="email" value={form.email} onChange={set('email')} autoComplete="email" maxLength={254} /></div>
+                <div className="field"><label>Phone</label>
+                  <input type="tel" value={form.phone} onChange={set('phone')} autoComplete="tel" maxLength={20} /></div>
+              </div>
+              {err && <div className="prof-err" role="alert">{err}</div>}
+              <div className="prof-actions">
+                <button type="button" className="btn" onClick={onPassword}><Icon name="key" size={15} /> Change password</button>
+                <div style={{ flex: 1 }} />
+                <button className="btn primary" type="submit" disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save changes'}</button>
+              </div>
+            </form>
+
+            <div className="prof-section">Account</div>
+            <dl className="prof-facts">
+              {facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+            </dl>
+            <div className="prof-note">
+              {ROLE_HELP[p.role] || ''}
+              {restricted && <> Your administrator has narrowed this to the screens ticked for you.</>}
+              {' '}Your username and role are changed by a Super Admin in Users &amp; Access.
+            </div>
+
+            <div className="prof-section">Recent activity</div>
+            {(p.recent || []).length ? (
+              <ul className="prof-acts">
+                {p.recent.map((a, i) => (
+                  <li key={i} className={a.outcome && a.outcome !== 'ok' ? 'bad' : ''}>
+                    <span className="prof-act-tx">{a.summary || [a.action, a.screen].filter(Boolean).join(' · ') || 'Activity'}
+                      {a.warehouse && <small> · {a.warehouse}</small>}</span>
+                    <span className="prof-act-at">{a.at ? agoText(new Date(a.at).getTime()) : ''}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : <div className="small" style={{ color: 'var(--text-2)' }}>Nothing recorded yet.</div>}
+          </div>
+        )}
+        {!p && err && <div className="prof-body"><div className="prof-err" role="alert">{err}</div></div>}
+      </div>
+    </div>
+  )
+}
+
+// ==========================================================================
 //  Roles
 //  ------------------------------------------------------------------------
 //  Three ranked roles, matching backend/app/services/users.py. Everything is
@@ -18592,6 +18721,8 @@ export default function App() {
   const [authed, setAuthed] = useState(false)
   const [authChecked, setAuthChecked] = useState(false)
   const [user, setUser] = useState('')
+  // the person's name from My profile (shown instead of the username when set)
+  const [fullName, setFullName] = useState('')
   const [role, setRole] = useState('')
   //: what this ACCOUNT may open, screen by screen. Empty means unrestricted and
   //: the role decides on its own — see services/permissions.has_map.
@@ -18602,6 +18733,7 @@ export default function App() {
   const storeHome = storeUser ? 'pos:counter' : 'pos:home'
   const posItems = storeUser ? POS_ITEMS.filter((p) => p && POS_USER_KEYS.has(p.key)) : POS_ITEMS
   const [showPassword, setShowPassword] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
 
   // Where an account lands when it is outside every warehouse. The Central
   // Dashboard is the natural home, but it is ADMIN — and for a floor user it
@@ -18672,7 +18804,7 @@ export default function App() {
         // a week-old token comes back renewed — keep it, or the sign-in
         // lapses when the old one reaches its month
         if (r.token && r.token !== t) localStorage.setItem('essa_token', r.token)
-        setAuthed(true); setUser(r.user); setRole(r.role || '')
+        setAuthed(true); setUser(r.user); setRole(r.role || ''); setFullName(r.full_name || '')
         setPerms(r.permissions || {})
       } else session.clear()
     }).catch(() => {}).finally(() => setAuthChecked(true))
@@ -18701,8 +18833,8 @@ export default function App() {
     clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastMsg(null), Math.min(9000, 3000 + text.length * 35))
   }, [])
-  const handleLogin = (token, u, r, perms) => {
-    session.set(token); setUser(u); setRole(r || ''); setPerms(perms || {}); setAuthed(true)
+  const handleLogin = (token, u, r, perms, name) => {
+    session.set(token); setUser(u); setRole(r || ''); setPerms(perms || {}); setFullName(name || ''); setAuthed(true)
   }
   const logout = () => {
     // Clears the cookie as well as the stored token. Without the call the
@@ -19085,10 +19217,10 @@ export default function App() {
         <NotificationBell onOpen={() => setNotifsOpen(true)} tick={notifTick} />
         <button className={'th-user' + (menu === 'user' ? ' on' : '')} onClick={() => setMenu(menu === 'user' ? null : 'user')}
           aria-expanded={menu === 'user'}
-          title={`${user} · ${ROLE_LABEL[role] || role}${ROLE_HELP[role] ? ' — ' + ROLE_HELP[role] : ''}`}>
-          <span className="th-avatar" aria-hidden="true">{initialsOf(user)}</span>
+          title={`${fullName || user} · ${ROLE_LABEL[role] || role}${ROLE_HELP[role] ? ' — ' + ROLE_HELP[role] : ''}`}>
+          <span className="th-avatar" aria-hidden="true">{initialsOf(fullName || user)}</span>
           <span className="th-who">
-            <span className="th-name">{user}</span>
+            <span className="th-name">{fullName || user}</span>
             <span className="th-role">{ROLE_LABEL[role] || role}</span>
           </span>
           <Icon name="chevronDown" size={16} className="th-caret" />
@@ -19133,8 +19265,8 @@ export default function App() {
         {menu === 'user' && (
           <div className="th-pop th-userpop" role="menu">
             <div className="pop-me">
-              <span className="th-avatar lg" aria-hidden="true">{initialsOf(user)}</span>
-              <span className="pop-tx"><b>{user}</b><small>{ROLE_LABEL[role] || role} · {companyName}</small></span>
+              <span className="th-avatar lg" aria-hidden="true">{initialsOf(fullName || user)}</span>
+              <span className="pop-tx"><b>{fullName || user}</b><small>{ROLE_LABEL[role] || role} · {companyName}</small></span>
             </div>
             {ROLE_HELP[role] && <div className="pop-note">{ROLE_HELP[role]}</div>}
             <div className="pop-status">
@@ -19142,6 +19274,8 @@ export default function App() {
               <span className={'pop-pill' + (providers.claude_vision ? ' on' : '')}><i />Vision {providers.claude_vision ? 'on' : 'off'}</span>
               <span className={'pop-pill' + (providers.tesseract ? ' on' : '')}><i />OCR {providers.tesseract ? 'on' : 'off'}</span>
             </div>
+            <button role="menuitem" className="pop-row" onClick={() => { setMenu(null); setShowProfile(true) }}>
+              <Icon name="usercheck" size={16} /><span className="pop-tx"><b>My profile</b></span></button>
             <button role="menuitem" className="pop-row" onClick={() => { setMenu(null); setShowPassword(true) }}>
               <Icon name="key" size={16} /><span className="pop-tx"><b>Change password</b></span></button>
             {isSuper && (
@@ -19224,6 +19358,9 @@ export default function App() {
       {showSettings && <VisionSettings onClose={() => setShowSettings(false)}
         onChanged={refreshStatus} toast={toast} />}
       {showPassword && <ChangePassword onClose={() => setShowPassword(false)} toast={toast} />}
+      {showProfile && <MyProfile onClose={() => setShowProfile(false)} toast={toast} companyName={companyName} perms={perms}
+        onPassword={() => { setShowProfile(false); setShowPassword(true) }}
+        onSaved={(p) => setFullName(p.full_name || '')} />}
       {toastMsg && <div className={'toast ' + (toastMsg.kind || '')} role="status">{toastText(toastMsg.m)}</div>}
     </div>
   )

@@ -196,33 +196,42 @@ def _button(url, label):
             f'{html.escape(label)}</a></p>')
 
 
-def trial_email(lead, access):
+def trial_email(lead, access, password=None):
     """The free-trial email: the demo is ready, how to get in, for how long.
     `access` is trial.access_url(...) — the demo with the visitor's own expiring
-    sign-up pass. No password is sent: the visitor chooses one on the page the
-    button opens."""
+    sign-up pass. Without `password` none is sent: the visitor chooses one on the
+    page the button opens. With it (DEMO_EMAIL_PASSWORD, trial.py) the email
+    carries the login email + that temporary password."""
     first = (lead["name"].split() or ["there"])[0]
     window, minutes = lead.get("trial_window") or "", int(lead.get("trial_minutes") or 120)
     hours = f"{minutes // 60} hours" if minutes % 60 == 0 and minutes >= 120 else f"{minutes} minutes"
     demo_home = access.split("#")[0]
     subject = "Your Free Trial Is Ready – Access Your Demo"
     login = (f"Click “Access Your Free Trial”, then create a password of your choice on the page that opens. "
-             f"From then on, sign in at {demo_home} with {lead['email']} and that password. We never send "
+             f"From then on, sign in at {demo_home} with {lead['email'].lower()} and that password. We never send "
              "passwords by email. The link is personal to you — please don’t forward it.")
+    if password:
+        login = (f"Click “Access Your Free Trial” (or open {demo_home}) and sign in with your login email and "
+                 "the password above. The password is temporary: it works only during your trial. "
+                 "Please keep these details to yourself.")
     text_body = (
         f"Hi {first},\n\nThank you for your interest in {COMPANY_NAME}!\n\n"
         "Your free trial account is ready. You can now explore the platform and experience its features "
         "through your personalised demo access.\n\n"
         f"Access your free trial: {access}\n\n"
-        f"Demo URL: {demo_home}\nLogin email: {lead['email']}\n"
+        f"Demo URL: {demo_home}\nLogin email: {lead['email'].lower()}\n"
+        + (f"Password: {password}\n" if password else "") +
         f"Your trial: {hours} — {window}\n\n"
         f"How to sign in: {login}\n\n"
         "Once you’re in, a short interactive tour shows you the key features. You can skip it at any time "
         "and explore on your own.\n\n"
         f"If you need assistance, please contact {SUPPORT_EMAIL}.\n\nBest regards,\n{COMPANY_NAME} Team\n")
     rows = [("Demo URL", f'<a href="{html.escape(demo_home)}">{html.escape(demo_home)}</a>'),
-            ("Login email", html.escape(lead["email"])),
+            ("Login email", html.escape(lead["email"].lower())),
             ("Your trial", html.escape(f"{hours} — {window}"))]
+    if password:
+        rows.insert(2, ("Password", '<code style="font-size:15px;font-weight:700;letter-spacing:.5px;'
+                                    f'background:#F3EFE8;padding:2px 6px;border-radius:4px">{html.escape(password)}</code>'))
     table = "".join(f'<tr><td style="padding:4px 18px 4px 0;color:#6E675E;white-space:nowrap">{k}</td>'
                     f"<td>{v}</td></tr>" for k, v in rows)
     body = (f"<p>Hi {html.escape(first)},</p>"
@@ -240,12 +249,12 @@ def trial_email(lead, access):
     return _message(lead["email"], subject, text_body, _wrap(body))
 
 
-def send_trial(lead, access):
+def send_trial(lead, access, password=None):
     """Send the free-trial email now; True when it was handed to the mail server
     (or saved, in console mode). Never raises: a failure is logged, without the
-    link, and the visitor can ask for it again."""
+    link or password, and the visitor can ask for it again."""
     try:
-        _deliver(trial_email(lead, access))
+        _deliver(trial_email(lead, access, password))
         return True
     except Exception as exc:                          # noqa: BLE001
         print(f"[lead mail] FAILED trial email: {type(exc).__name__}: {exc}", flush=True)

@@ -5,6 +5,10 @@
 //        ──► the demo, for two hours from the start of the slot
 //        ──► then the password stops working and a "subscribe" card covers it
 //
+// Or, when the server emails the login details (DEMO_EMAIL_PASSWORD, the local
+// server with its database): SIGN IN with the login email + the password from
+// the email, on any device. /api/trial "status" says which.
+//
 // The passes (ticket, account, session) are signed by the server
 // (lead-api/trial.py) and checked there, against its clock, on every visit and
 // every few minutes during one — so moving the window here changes nothing.
@@ -79,7 +83,7 @@ export async function checkSession() {
     return { state: 'none' }
   }
   const r = await call('verify', { session: s })
-  if (r.ok) return { state: 'open', end: r.end, skew: r.now ? r.now * 1000 - Date.now() : 0, tourState: r.tour_state || null }
+  if (r.ok) return { state: 'open', end: r.end, skew: r.now ? r.now * 1000 - Date.now() : 0, tourState: r.tour_state || null, subscriber: !!r.subscriber }
   if (r.detail === 'not_yet') return { state: 'not_yet', start: r.start, end: r.end, window: r.window }
   if (r.detail === 'expired') { store.set('session', ''); return { state: 'expired' } }
   if (r.status === 401) { store.set('session', ''); return { state: 'none' } }
@@ -109,6 +113,10 @@ export function TrialGate({ onOpen, initial }) {
   const [busy, setBusy] = useState(false), [msg, setMsg] = useState(initial?.state === 'error' ? 'Could not reach WAREXX. Check the connection and try again.' : '')
   const [now, setNow] = useState(Date.now())
   const email = t?.e || ''
+  // emailed login details? (null until the server has said)
+  const [creds, setCreds] = useState(null)
+  const [em, setEm] = useState(email)
+  useEffect(() => { call('status', {}).then((s) => setCreds(!!(s.ok && s.credentials))) }, [])
 
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(i) }, [])
   // waiting for the slot: try again the moment it opens
@@ -141,6 +149,7 @@ export function TrialGate({ onOpen, initial }) {
       invalid_pass: 'This sign-up link is no longer valid. Book a slot again on the website.',
       too_many_attempts: 'Too many attempts. Please wait a while and try again.',
       trial_not_configured: 'Demo sign-up is not available right now. Please contact us.',
+      database_unavailable: 'Sign-in is not available right now. Please try again shortly.',
       offline: 'Could not reach WAREXX. Check the connection and try again.',
     }[r.detail] || 'Something went wrong. Please try again.')
   }
@@ -151,6 +160,20 @@ export function TrialGate({ onOpen, initial }) {
     setBusy(true)
     const r = await call('signup', { ticket, password: pw })
     return r.ok ? after(r) : fail(r)
+  }
+  const signin = async (e) => {
+    e.preventDefault(); setMsg(''); setBusy(true)
+    const r = await call('signin', { email: em.trim(), password: pw.trim() })
+    if (!r.ok && r.detail === 'wrong_password') { setBusy(false); return setMsg('That email and password don’t match. Use the details from your email.') }
+    return r.ok ? after(r) : fail(r)
+  }
+  const resend = async () => {
+    setMsg(''); setBusy(true)
+    const r = await call('resend', { ticket })
+    setBusy(false)
+    setMsg(r.ok && r.email_sent ? 'We’ve emailed you a new password — the old one no longer works.'
+      : r.detail === 'too_many_attempts' ? 'Too many emails. Please wait a while and try again.'
+      : 'We couldn’t send the email just now. Please try again shortly.')
   }
   const login = async (e) => {
     e.preventDefault(); setMsg(''); setBusy(true)
@@ -167,6 +190,29 @@ export function TrialGate({ onOpen, initial }) {
       <p className="wxtrial-sub">You’re signed up as <b>{email}</b>. WAREXX opens here by itself at the start of your slot.</p>
       {windowLine}
       <p className="wxtrial-count">Opens in <b>{left(wait.start * 1000 - now)}</b></p>
+    </Shell>
+  )
+
+  if (creds === null && mode !== 'wait') return <Shell><p className="wxtrial-sub">Please wait…</p></Shell>
+
+  if (creds && (mode === 'signup' || mode === 'login' || mode === 'none')) return (
+    <Shell>
+      <h1>Sign in to your demo</h1>
+      <p className="wxtrial-sub">{email
+        ? <>We’ve emailed your password to <b>{email}</b>. Enter it below to open WAREXX. It works during the two hours of your demo slot.</>
+        : 'Use the login email and password we sent you by email. They work for the two hours of your demo slot.'}</p>
+      {windowLine}
+      <form className="wxtrial-form" onSubmit={signin}>
+        <label><span>Email</span><input type="email" value={em} onChange={(e) => setEm(e.target.value)}
+          readOnly={!!email} autoComplete="username" autoFocus={!email} required /></label>
+        <label><span>Password</span><input type="password" value={pw} onChange={(e) => setPw(e.target.value)}
+          autoFocus={!!email} autoComplete="current-password" required /></label>
+        {msg && <p className="wxtrial-err" role="alert">{msg}</p>}
+        <button className="wxtrial-btn" type="submit" disabled={busy}>{busy ? 'Please wait…' : 'Sign in'}</button>
+      </form>
+      {ticket
+        ? <button className="wxtrial-link" type="button" disabled={busy} onClick={resend}>Didn’t get the email? Send a new password</button>
+        : <a className="wxtrial-link" href={LANDING.replace(/\/?$/, '/') + '#contact'}>No login yet? Book a demo slot</a>}
     </Shell>
   )
 
@@ -218,8 +264,9 @@ export function SubscribeCard({ standalone }) {
 
 /** Beside the running demo: a quiet countdown, a re-check with the server every
  *  few minutes and when the tab comes back, and the subscribe card at the end. */
-export function TrialWatch({ end, skew = 0 }) {
+export function TrialWatch({ end, skew = 0, subscriber = false }) {
   const [over, setOver] = useState(false)
+  const [hideNote, setHideNote] = useState(false)
   const [now, setNow] = useState(Date.now() + skew)
   const endMs = useRef(end * 1000)
   useEffect(() => {
@@ -240,6 +287,13 @@ export function TrialWatch({ end, skew = 0 }) {
   }, [over])
   useEffect(() => { if (over) { store.set('session', ''); document.body.classList.add('wxtrial-ended') } }, [over])
   if (over) return <SubscribeCard />
+  // a subscriber (the payment page, /pay): no countdown — their own workspace is on its way
+  if (subscriber) return hideNote ? null : (
+    <div className="wxtrial-timer wxtrial-subnote" role="status">
+      <span>Welcome to WAREXX! Your own workspace is being set up — meanwhile, explore with a sample business.</span>
+      <button type="button" aria-label="Dismiss" onClick={() => setHideNote(true)}>×</button>
+    </div>
+  )
   const ms = endMs.current - now
   return <div className={'wxtrial-timer' + (ms < 10 * 60 * 1000 ? ' soon' : '')} role="status">Demo time left <b>{left(ms)}</b></div>
 }

@@ -50,6 +50,7 @@
 .wxtrial-btn.ghost:hover { background: #F6F4F0; }
 .wxtrial-link { margin-top: 12px; border: 0; background: none; padding: 0; color: #C2560F; font: inherit; font-size: 12.5px;
   font-weight: 600; cursor: pointer; }
+a.wxtrial-link { display: inline-block; text-decoration: none; }
 /* the end of the demo: the card over the app, the app blurred and out of reach */
 .wxtrial-overlay { position: fixed; inset: 0; z-index: 500; display: grid; place-items: center; padding: 20px;
   background: rgba(20, 20, 20, .55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
@@ -59,6 +60,12 @@ body.wxtrial-ended .wxdemo-banner { display: none; }
   box-shadow: 0 4px 14px -6px rgba(0, 0, 0, .4); }
 .wxtrial-timer b { color: #fff; font-variant-numeric: tabular-nums; margin-left: 4px; }
 .wxtrial-timer.soon { background: #C2560F; color: #FFE9D8; }
+/* a subscriber: a welcome note instead of the countdown, which can be closed */
+.wxtrial-subnote { top: 66px; bottom: auto; width: max-content;
+  display: flex; align-items: center; gap: 10px; max-width: min(560px, calc(100vw - 32px)); pointer-events: auto;
+  padding: 7px 8px 7px 14px; border-radius: 14px; background: rgba(20, 20, 20, .9); color: #F1F1F1; line-height: 1.4; }
+.wxtrial-subnote button { flex: none; width: 22px; height: 22px; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .14);
+  color: #fff; cursor: pointer; font-size: 14px; line-height: 1; }
 
 /* ---- the guided tour (tour.jsx) -------------------------------------------
    The dimming lets clicks through (pointer-events: none), so the app stays

@@ -22,11 +22,18 @@ if (!existsSync(path.join(SITE, 'index.html'))) { console.error('dist/site is mi
 
 createServer((req, res) => {
   const url = new URL(req.url, 'http://x')
-  if (url.pathname === '/api/leads' || url.pathname === '/api/trial' || url.pathname === '/api/admin') {
+  if (['/api/leads', '/api/trial', '/api/admin'].includes(url.pathname)) {
     const fwd = httpRequest({ hostname: leadApi.hostname, port: leadApi.port, path: url.pathname,
       method: req.method, headers: { ...req.headers, host: leadApi.host, 'x-forwarded-host': req.headers.host } }, (r) => { res.writeHead(r.statusCode, r.headers); r.pipe(res) })
     fwd.on('error', () => { res.writeHead(502, { 'Content-Type': 'application/json' }); res.end('{"detail":"lead API not running"}') })
     return req.pipe(fwd)
+  }
+  if (url.pathname === '/api/geo') {
+    // the visitor's country for the landing page's prices (api/geo.py on Vercel):
+    // through a Cloudflare Tunnel (tools/run-local.mjs) Cloudflare adds it
+    const c = String((process.env.LEAD_TRUST_CF === '1' && req.headers['cf-ipcountry']) || '').toUpperCase()
+    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'private, no-store' })
+    return res.end(JSON.stringify({ country: /^[A-Z]{2}$/.test(c) && c !== 'XX' ? c : '' }))
   }
   let rel = decodeURIComponent(url.pathname)
   let file = path.join(SITE, rel)
