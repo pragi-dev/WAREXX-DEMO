@@ -35,6 +35,10 @@
       "destination": "/pricing/index.html"
     },
     {
+      "source": "/legal",
+      "destination": "/legal/index.html"
+    },
+    {
       "source": "/demo",
       "destination": "/demo/index.html"
     },
@@ -80,6 +84,15 @@
     },
     {
       "source": "/pricing(/|/index.html)?",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/legal(/|/index.html)?",
       "headers": [
         {
           "key": "Cache-Control",

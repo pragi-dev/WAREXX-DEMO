@@ -1,0 +1,154 @@
+<!-- The /legal page's own content: Privacy Policy, Terms of Service, Refund &
+     Cancellation Policy and Disclaimer (from Warexx_Website_Legal_Policies_FIXED.pdf,
+     October 2026). tools/landing.mjs builds /legal from the landing page: same
+     head, styles, header, footer and scripts, with <main> holding this.
+     Every page's footer links to the sections here (#privacy, #terms,
+     #refunds, #disclaimer). -->
+<style>
+  .legal { padding: calc(var(--nav-h) + 48px) 0 80px; }
+  .legal__head { max-width: 760px; margin-bottom: 28px; }
+  .legal__head h1 { font: 700 clamp(32px, 4vw, 48px)/1.1 var(--display); letter-spacing: -.03em; color: var(--ink); }
+  .legal__head p { margin-top: 12px; color: var(--mute); font-size: 16px; }
+  .legal__grid { display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 40px; align-items: start; }
+  .legal__toc { position: sticky; top: calc(var(--nav-h) + 24px); display: grid; gap: 4px; }
+  .legal__toc a { padding: 9px 12px; border-radius: 10px; font-size: 14px; font-weight: 500; color: var(--mute); }
+  .legal__toc a:hover, .legal__toc a:focus-visible { color: var(--ink); background: var(--tint); }
+  .legal__doc { max-width: 760px; display: grid; gap: 22px; }
+  .legal__sec { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: clamp(20px, 3vw, 36px); scroll-margin-top: calc(var(--nav-h) + 20px); }
+  .legal__sec h2 { font: 700 26px/1.2 var(--display); letter-spacing: -.02em; color: var(--ink); }
+  .legal__sec .legal__date { margin: 6px 0 14px; font: 500 12px var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--accent-text); }
+  .legal__sec h3 { margin: 20px 0 6px; font: 600 16px/1.3 var(--sans); color: var(--ink); }
+  .legal__sec h4 { margin: 12px 0 4px; font: 600 14px/1.3 var(--sans); color: var(--ink); }
+  .legal__sec p, .legal__sec li { font-size: 15px; line-height: 1.65; color: var(--mute); }
+  .legal__sec ul { margin: 6px 0 0 18px; list-style: disc; display: grid; gap: 3px; }
+  .legal__sec a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+  @media (max-width: 860px) {
+    .legal__grid { grid-template-columns: 1fr; gap: 18px; }
+    .legal__toc { position: static; display: flex; flex-wrap: wrap; }
+  }
+</style>
+
+<section class="legal" id="legal">
+  <div class="wrap">
+    <header class="legal__head">
+      <p class="eyebrow">Legal</p>
+      <h1>Website legal policies</h1>
+      <p>Privacy, Terms of Service, Refunds and Disclaimer for WAREXX, the cloud-based Warehouse ERP platform by AAVORAA.</p>
+    </header>
+    <div class="legal__grid">
+      <nav class="legal__toc" aria-label="Policies">
+        <a href="#privacy">Privacy Policy</a>
+        <a href="#terms">Terms of Service</a>
+        <a href="#refunds">Refund &amp; Cancellation</a>
+        <a href="#disclaimer">Disclaimer</a>
+      </nav>
+      <div class="legal__doc">
+
+        <article class="legal__sec" id="privacy">
+          <h2>1. Privacy Policy</h2>
+          <p class="legal__date">Last updated: October 2026</p>
+          <p>Warexx (“we”, “our” or “us”) provides a cloud-based Warehouse ERP platform for warehouse operations. This Privacy Policy explains how information may be collected, used, stored and protected when you visit our website or use our services.</p>
+          <h3>Information We Collect</h3>
+          <p>Depending on how you use the website and platform, we may collect:</p>
+          <h4>Account and Contact Information</h4>
+          <ul><li>Name and company name</li><li>Email address and phone number</li><li>Billing and subscription details</li></ul>
+          <h4>Business and Operational Data</h4>
+          <ul><li>Inventory and stock records</li><li>Grading, invoices and billing information</li><li>Customer and vendor records</li><li>Warehouse operations and reports</li></ul>
+          <h4>Technical and Usage Information</h4>
+          <p>We may collect IP address, browser and device details, log data, cookies and usage analytics to support security, troubleshooting and performance improvements.</p>
+          <h3>How We Use Information</h3>
+          <ul><li>Provide and maintain the platform</li><li>Manage accounts, subscriptions, payments and support</li><li>Improve functionality and user experience</li><li>Monitor security and prevent misuse</li><li>Send important service-related communications</li></ul>
+          <h3>Sharing and Third-Party Providers</h3>
+          <p>We do not sell or rent personal or business data. We may use hosting, payment, email and analytics providers who process information as needed to provide their services, subject to appropriate safeguards.</p>
+          <h3>Security</h3>
+          <p>We use reasonable safeguards, which may include HTTPS encryption, access controls, secure infrastructure, monitoring and backups. No method of transmission or storage can guarantee absolute security.</p>
+          <h3>Retention</h3>
+          <p>Information may be retained while an account is active, as needed to provide services, for legitimate business purposes or where required by law. Deletion may be subject to legal and operational requirements.</p>
+          <h3>Cookies</h3>
+          <p>Cookies and similar technologies may be used to maintain sessions, improve performance and understand website usage. Disabling cookies may affect some features.</p>
+          <h3>Customer Data Ownership</h3>
+          <p>Business and operational data entered into Warexx remains the customer’s property. Customers are responsible for the accuracy and lawful collection and use of data they submit.</p>
+          <h3>Your Choices and Requests</h3>
+          <p>Subject to applicable law, you may request access to or correction or deletion of personal information, or withdraw consent where applicable. Contact <a href="mailto:warex.support@aavoraa.com">warex.support@aavoraa.com</a> to submit a request.</p>
+          <h3>Intellectual Property</h3>
+          <p>Warexx branding, logos, software, designs and related materials are owned by or licensed to Warexx and may not be used without permission.</p>
+          <h3>Changes and Contact</h3>
+          <p>We may update this policy from time to time and revise the date above. For privacy questions, contact <a href="mailto:warex.support@aavoraa.com">warex.support@aavoraa.com</a>.</p>
+        </article>
+
+        <article class="legal__sec" id="terms">
+          <h2>2. Terms of Service</h2>
+          <p class="legal__date">Last updated: October 2026</p>
+          <p>These Terms of Service govern access to and use of the Warexx Warehouse ERP platform (“Service”). By accessing or using the Service, you agree to these Terms. If you do not agree, do not use the Service.</p>
+          <h3>Service Description</h3>
+          <p>Warexx offers tools for inventory management, grading, billing, warehouse-charge calculations, reporting and related operational workflows. The Service is intended for lawful business use.</p>
+          <h3>Accounts and Responsibilities</h3>
+          <ul><li>Provide accurate account information and keep it updated</li><li>Keep login credentials confidential and restrict unauthorised access</li><li>Ensure users in your organisation comply with these Terms</li><li>You are responsible for activity carried out through your account</li></ul>
+          <h3>Subscriptions and Payments</h3>
+          <p>Subscriptions may be billed monthly or annually, according to the selected plan. Fees are exclusive of applicable taxes unless stated otherwise. Payments are due in advance. Failure to pay may result in suspension or termination.</p>
+          <h3>Refunds</h3>
+          <p>Subscription fees are generally non-refundable once processed, including for partial usage, unused periods or early cancellation, except where required by applicable law or expressly agreed in a separate written agreement.</p>
+          <h3>Customer Data</h3>
+          <p>Business and operational data entered into the Service remains the customer’s property. You are responsible for the accuracy, legality and appropriate use of that data.</p>
+          <h3>Acceptable Use</h3>
+          <ul><li>Do not use the Service for unlawful or unauthorised purposes</li><li>Do not attempt to disrupt, damage or compromise the platform or its security</li><li>Do not upload malicious code or harmful content</li><li>Do not attempt to access another account or system without permission</li><li>Do not copy, reverse-engineer or exploit the platform except where applicable law permits</li></ul>
+          <h3>Intellectual Property</h3>
+          <p>Warexx names, branding, logos, software, designs and platform content are owned by or licensed to Aavoraa. Access to the Service does not transfer ownership or grant rights beyond permitted use during an active subscription.</p>
+          <h3>Availability</h3>
+          <p>We aim to provide a reliable service but do not guarantee uninterrupted or error-free access. Maintenance, updates, network failures and events beyond our reasonable control may affect availability.</p>
+          <h3>Limitation of Liability</h3>
+          <p>To the maximum extent permitted by law, Warexx is not liable for indirect or consequential loss, lost revenue, or decisions made based on reports or data entered by users. Any liability cap is subject to applicable law and does not exclude liability that cannot legally be excluded.</p>
+          <h3>Suspension and Termination</h3>
+          <p>You may cancel according to your subscription terms. We may suspend or terminate access for non-payment, material violations, abusive conduct or security risks, subject to applicable law and any separate written agreement.</p>
+          <h3>Governing Law</h3>
+          <p>These Terms are governed by the laws of India. Disputes will be handled by competent courts with jurisdiction, subject to applicable law.</p>
+          <h3>Changes and Contact</h3>
+          <p>We may update these Terms from time to time. Continued use after updated Terms take effect constitutes acceptance where legally valid. Questions may be sent to <a href="mailto:warex.support@aavoraa.com">warex.support@aavoraa.com</a>.</p>
+        </article>
+
+        <article class="legal__sec" id="refunds">
+          <h2>3. Refund &amp; Cancellation Policy</h2>
+          <p class="legal__date">Last updated: October 2026</p>
+          <p>This policy explains subscription payments, cancellations and billing enquiries for the Warexx Warehouse ERP service. It applies subject to applicable law and any separate written enterprise agreement.</p>
+          <h3>Subscription Model</h3>
+          <p>Subscriptions may be billed monthly or annually and are generally payable in advance. Applicable taxes are additional unless stated otherwise.</p>
+          <h3>Refund Eligibility</h3>
+          <p>Subscription payments are generally non-refundable after processing. Refunds are not ordinarily provided for partial usage, unused subscription periods or early cancellation, except where required by law or expressly agreed in writing.</p>
+          <h3>Cancellation</h3>
+          <p>Customers may request cancellation according to their subscription terms. Unless the applicable plan or agreement says otherwise, access may continue until the end of the paid billing period and future renewals should stop after cancellation takes effect. Unused time is not refundable except where required by law or agreed in writing.</p>
+          <h3>Enterprise Agreements</h3>
+          <p>A separate written agreement may set different billing, cancellation or refund terms. Where applicable, that agreement governs any conflict with this policy.</p>
+          <h3>Billing Disputes</h3>
+          <p>If you believe a charge is incorrect, contact <a href="mailto:warex.support@aavoraa.com">warex.support@aavoraa.com</a> promptly with your account and transaction details. This request process does not limit rights available under applicable law.</p>
+          <h3>Policy Changes</h3>
+          <p>We may update this policy and will post the current version on the website.</p>
+          <h3>Contact</h3>
+          <p>For billing, refunds or cancellation questions, contact <a href="mailto:warex.support@aavoraa.com">warex.support@aavoraa.com</a>.</p>
+        </article>
+
+        <article class="legal__sec" id="disclaimer">
+          <h2>4. Disclaimer</h2>
+          <p class="legal__date">Last updated: October 2026</p>
+          <p>Warexx provides a cloud-based Warehouse ERP platform intended to support inventory, grading, billing, warehouse charges, reporting and operational workflows. This Disclaimer explains key limitations and user responsibilities.</p>
+          <h3>No Professional Advice</h3>
+          <p>Information, reports, calculations and analytics are provided for operational assistance only. They are not financial, legal, tax, accounting or professional advice. Users should independently assess outputs and make their own decisions.</p>
+          <h3>Data and Accuracy</h3>
+          <p>The platform may rely on information entered by users. Warexx does not guarantee that all user-entered data, reports or calculations will be accurate, complete or error-free. Verify important operational and financial information before relying on it.</p>
+          <h3>Availability and Technical Issues</h3>
+          <p>We make reasonable efforts to maintain service availability but do not guarantee uninterrupted access or error-free operation. Maintenance, updates, network issues and unforeseen events may affect the Service.</p>
+          <h3>Limitation of Liability</h3>
+          <p>To the maximum extent permitted by law, Warexx is not liable for indirect or consequential damages, business or revenue losses, or inaccuracies arising from user-provided information or misuse of the platform. Nothing in this Disclaimer excludes liability that cannot legally be excluded.</p>
+          <h3>Third-Party Services</h3>
+          <p>The platform may rely on third-party hosting, payment, email or infrastructure providers. Warexx is not responsible for third-party disruptions beyond its reasonable control.</p>
+          <h3>User Responsibilities</h3>
+          <p>Users are responsible for securing credentials, reviewing reports and calculations, using the platform appropriately and complying with applicable laws.</p>
+          <h3>Intellectual Property</h3>
+          <p>Warexx branding, logos, software, designs and related content are protected intellectual property. Unauthorised use or reproduction is prohibited.</p>
+          <h3>Contact</h3>
+          <p>For questions about this Disclaimer, contact <a href="mailto:warex.support@aavoraa.com">warex.support@aavoraa.com</a>.</p>
+        </article>
+
+      </div>
+    </div>
+  </div>
+</section>

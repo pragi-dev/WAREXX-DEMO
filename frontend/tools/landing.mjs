@@ -20,6 +20,7 @@ import { createServer, request as httpRequest } from 'node:http'
 import { cpSync, createReadStream, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { SUBPAGES, subPage, withLegalLinks } from './subpages.mjs'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const FRONTEND = path.resolve(HERE, '..')
@@ -147,6 +148,7 @@ export function landingPage(mode) {
   html = html.split('href="/" data-enter-app').join(`href="${appHref}" data-enter-app`)
   // today's exchange rates for prices abroad (a build only; dev keeps the page's)
   if (mode === 'build') html = withRates(html)
+  html = withLegalLinks(html)
   const head = html.search(/<head[^>]*>/i)
   if (head < 0) throw new Error('landing/index.html: no <head>')
   const at = html.indexOf('>', head) + 1
@@ -166,6 +168,11 @@ export function build(out = OUT) {
   // /pricing — what Monthly and Annual open
   mkdirSync(path.join(out, 'pricing'), { recursive: true })
   writeFileSync(path.join(out, 'pricing', 'index.html'), pricingPage(html))
+  // /legal — the policies the footer links to
+  for (const name of Object.keys(SUBPAGES)) {
+    mkdirSync(path.join(out, name), { recursive: true })
+    writeFileSync(path.join(out, name, 'index.html'), subPage(html, name))
+  }
   const cfg = landingConfig('build')
   // The demo on ANOTHER site (an absolute VITE_DEMO_URL): /demo here forwards
   // there — a page for any static host, _redirects for Netlify / Cloudflare
@@ -210,6 +217,11 @@ function dev() {
     if (url.pathname === '/pricing' || url.pathname === '/pricing/') {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
       return res.end(pricingPage(landingPage('dev')))
+    }
+    const sub = /^\/(legal)\/?$/.exec(url.pathname)
+    if (sub) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
+      return res.end(subPage(landingPage('dev'), sub[1]))
     }
     if (url.pathname.startsWith('/assets/')) {
       const f = path.join(ASSETS, path.normalize(decodeURIComponent(url.pathname.slice(8))).replace(/^([/\\])+/, ''))
