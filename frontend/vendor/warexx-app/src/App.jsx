@@ -16667,7 +16667,8 @@ const NAV_SECTIONS = {
   warehouse: [
     { title: 'Operations', entries: [
       { id: 'procurement', label: 'Procurement', icon: 'cart',
-        keys: ['purchase_orders', 'lr', 'suppliers', 'returns'] },
+        // the order the paperwork arrives in: PO → LR → the supplier's invoice
+        keys: ['purchase_orders', 'lr', 'documents', 'suppliers', 'returns'] },
       { id: 'inventory', label: 'Inventory & Warehousing', icon: 'boxes',
         keys: ['inventory', 'locator', 'deadstock', 'pricing'] },
       { id: 'quality', label: 'Quality', icon: 'shield', keys: ['stock_audit', 'physical_audit'] },
@@ -16675,7 +16676,7 @@ const NAV_SECTIONS = {
       { key: 'ws:store', label: 'Sales & Store', icon: 'store' },
     ] },
     { title: 'Documents', entries: [
-      { key: 'documents' }, { key: 'purchases' },
+      { key: 'purchases' },
       { id: 'templates', label: 'Labels & Templates', icon: 'qr', keys: ['labels', 'labelprint'] },
     ] },
     { title: 'Analytics', entries: [{ key: 'reports' }, { key: 'payments' }] },
