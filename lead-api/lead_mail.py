@@ -337,3 +337,35 @@ def cors_headers(origin):
                 "Access-Control-Allow-Methods": "POST, OPTIONS",
                 "Access-Control-Allow-Headers": "Content-Type", "Access-Control-Max-Age": "600"}
     return {}
+
+
+def check():
+    """The mail settings as this server sees them, and whether it can sign in to
+    the mailbox — for the admin page. Sends nothing; never shows the password."""
+    dom = lambda a: (parseaddr(a or "")[1].split("@") + [""])[1]          # noqa: E731
+    out = {"backend": MAIL_BACKEND, "from": parseaddr(MAIL_FROM)[1], "smtp_host": SMTP_HOST, "smtp_port": SMTP_PORT,
+           "smtp_user": SMTP_USER, "password_set": bool(SMTP_PASSWORD), "notify_to": NOTIFY_TO,
+           "demo_notify_to": DEMO_NOTIFY_TO, "accounts_to": ACCOUNTS_TO,
+           "from_matches_user": dom(MAIL_FROM).lower() == dom(SMTP_USER).lower()}
+    if MAIL_BACKEND != "smtp":
+        out["login"] = "not tried: LEAD_MAIL_BACKEND is not smtp, so emails are only saved as files, never sent"
+        return out
+    try:
+        if SMTP_PORT == 465:
+            s = smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT, timeout=20, context=ssl.create_default_context())
+        else:
+            s = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20)
+            s.starttls(context=ssl.create_default_context())
+        try:
+            s.login(SMTP_USER, SMTP_PASSWORD)
+            out["login"] = "ok"
+        finally:
+            try:
+                s.quit()
+            except Exception:  # noqa: BLE001
+                pass
+    except smtplib.SMTPAuthenticationError as e:
+        out["login"] = f"refused: {e.smtp_code} {str(e.smtp_error, 'utf-8', 'replace')[:200] if isinstance(e.smtp_error, bytes) else e.smtp_error}"
+    except Exception as e:  # noqa: BLE001
+        out["login"] = f"failed: {type(e).__name__}: {str(e)[:200]}"
+    return out

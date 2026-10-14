@@ -126,6 +126,9 @@ def handle(raw, ip="", token=""):
         except Exception as exc:  # noqa: BLE001 — the leads still show
             print(f"[admin] billing summary unavailable: {type(exc).__name__}", flush=True)
         return out
+    if action == "mail_check":                     # sends nothing (lead_mail.check)
+        import lead_mail
+        return lead_mail.check()
     if action == "payments":
         return {**payments.admin_orders(q, str(data.get("status") or ""), PAGE, page * PAGE), "page": page, "per_page": PAGE}
     if action == "payment_check":
