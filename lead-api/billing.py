@@ -35,9 +35,18 @@ ORDER_STATUSES = ("created", "pending", "paid", "failed", "cancelled", "expired"
 REFUND_STATUSES = ("requested", "pending", "success", "failure", "manual_review", "error")
 
 
+#: BILLING_DATABASE_URL, or what Vercel's Neon integration sets when the billing
+#: database is connected with the custom prefix BILLING or BILLING_DATABASE.
+_URL_NAMES = ("BILLING_DATABASE_URL", "BILLING_DATABASE_POSTGRES_URL", "BILLING_DATABASE_DATABASE_URL",
+              "BILLING_POSTGRES_URL")
+
+
 def database_url():
-    v = (os.environ.get("BILLING_DATABASE_URL") or "").strip()
-    return v if v.startswith(("postgres://", "postgresql://")) else ""
+    for name in _URL_NAMES:
+        v = (os.environ.get(name) or "").strip()
+        if v.startswith(("postgres://", "postgresql://")):
+            return v
+    return ""
 
 
 def kind():
