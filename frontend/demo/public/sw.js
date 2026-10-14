@@ -40,8 +40,12 @@ const shape = (p) => p.replace(/\/\d+(?=\/|$)/g, '/:n').replace(/\/[0-9a-f]{8,}(
 // (the landing page's visitor country, for prices in their currency). None is
 // part of the recording, and nothing of the demo's data goes to any of them.
 // /api/admin is the leads admin page (/admin) — it must never get demo answers.
+// /api/subscribe and /api/payment/* are the real subscription and HDFC
+// SmartGateway endpoints: HDFC sends the customer back to /api/payment/return,
+// and on a browser that has opened the demo this worker sees that request first.
 const REAL = new Set(['/api/leads', '/api/trial', '/api/geo', '/api/admin', '/api/subscribe'])
 const ours = (url) => url.origin === self.location.origin && !REAL.has(url.pathname) &&
+  !url.pathname.startsWith('/api/payment/') &&
   (url.pathname.startsWith('/api/') || url.pathname === '/api' || url.pathname.startsWith('/pos'))
 
 // The phone app (/m) is real files — the WAREXX phone page, copied in at build
