@@ -115,8 +115,9 @@ ok(pw and re.fullmatch(r"[A-Za-z2-9]{4}-[A-Za-z2-9]{4}-[A-Za-z2-9]{4}", pw), f"�
 ok(pw and pw in m["html"] and "https://demo.example.test/demo/#t=" in m["text"], "…in the HTML part too, with the demo link")
 ok("We never send passwords" not in m["text"], "…and no longer says passwords are never emailed")
 ok(pw and pw not in json.dumps(b), "the password is not in the answer to the browser")
-sales = [x for x in mails() if x["to"] == "sales@example.com"]
-ok(sales and pw and all(pw not in x["text"] + x["html"] for x in sales), "nor in the sales notification")
+sales = [x for x in mails() if "marketing@aavoraa.com" in x["to"] and "tech@aavoraa.com" in x["to"]]
+ok(sales and "demo request" in sales[0]["subject"].lower(), "the demo request goes to marketing@ and tech@aavoraa.com")
+ok(sales and pw and all(pw not in x["text"] + x["html"] for x in sales), "…without the password (that goes to the user only)")
 row = store.run("SELECT * FROM trials WHERE email = %s", ("asha@example.com",), fetch=True)[0]
 ok(row["pw_hash"] and row["pw_salt"] and pw not in json.dumps(row), "the database keeps only a salted hash")
 ok(row["email_sent"] == 1 and row["emails_sent"] == 1, "…and that the email went")

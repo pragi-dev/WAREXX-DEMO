@@ -11,7 +11,7 @@ import '../vendor/warexx-app/src/design-system.css'
 import '../vendor/warexx-app/src/ui/warexx.css'
 import '../vendor/warexx-app/src/ui/screens.css'
 import './demo.css'
-import { TRIAL_ON, TrialGate, TrialWatch, checkSession, reportTour, takeTicketFromUrl, trialUser } from './trial.jsx'
+import { DemoWelcome, TRIAL_ON, TrialGate, TrialWatch, checkSession, reportTour, takeTicketFromUrl, trialUser } from './trial.jsx'
 import { TourHost, startTour } from './tour.jsx'
 import { AccountPanel } from './account.jsx'
 
@@ -93,6 +93,10 @@ ready().then(async () => {
       document.getElementById('boot')?.remove()
       document.body.classList.add('wxtrial-gated')
       open = await new Promise((resolve) => root.render(<TrialGate initial={open} onOpen={resolve} />))
+      // just signed in with the emailed password: the demo video, or the demo itself
+      if (!open.subscriber) {
+        await new Promise((resolve) => root.render(<DemoWelcome email={trialUser()} onTrial={resolve} />))
+      }
       document.body.classList.remove('wxtrial-gated')
     }
   }

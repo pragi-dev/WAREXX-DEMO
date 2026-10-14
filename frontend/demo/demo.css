@@ -158,3 +158,25 @@ body.wxtrial-ended .wxdemo-banner { display: none; }
 }
 /* the trial countdown / subscriber note stays out of the way of My profile and the receipt */
 body:has(.prof-scrim) .wxtrial-timer, body:has(.wxacc-rcpt-scrim) .wxtrial-timer { display: none; }
+
+/* after signing in: watch the video or open the demo (trial.jsx DemoWelcome) */
+.wxtrial-card.wide { width: min(760px, 100%); }
+.wxtrial-choices { display: grid; gap: 10px; margin-top: 4px; }
+.wxtrial-choice { display: flex; align-items: center; gap: 14px; width: 100%; padding: 14px 16px; text-align: left; cursor: pointer;
+  border-radius: 12px; border: 1px solid #DDD8D0; background: #fff; color: #141414; font: inherit; transition: border-color .15s, box-shadow .15s; }
+.wxtrial-choice:hover, .wxtrial-choice:focus-visible { border-color: #EE7A1E; box-shadow: 0 0 0 3px rgba(238, 122, 30, .15); outline: none; }
+.wxtrial-choice b { display: block; font-size: 15px; }
+.wxtrial-choice small { display: block; margin-top: 2px; font-size: 12.5px; color: #5E5A54; }
+.wxtrial-choice.primary { background: #141414; color: #fff; border-color: #141414; }
+.wxtrial-choice.primary small { color: rgba(255, 255, 255, .7); }
+.wxtrial-choice-ic { flex: none; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%;
+  background: rgba(238, 122, 30, .12); color: #D9601B; font-size: 16px; }
+.wxtrial-choice.primary .wxtrial-choice-ic { background: #EE7A1E; color: #fff; }
+.wxtrial-video { position: relative; aspect-ratio: 16 / 9; margin: 6px 0 14px; border-radius: 12px; overflow: hidden; background: #0E0F12; }
+.wxtrial-video iframe, .wxtrial-video video { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.wxtrial-video .wxtrial-sub { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; margin: 0; }
+.wxtrial-video-soon { position: absolute; inset: 0; display: grid; place-content: center; gap: 6px; padding: 24px; text-align: center; color: #fff; }
+.wxtrial-video-soon span { color: rgba(255, 255, 255, .7); font-size: 13.5px; max-width: 420px; }
+.wxtrial-acts { display: grid; grid-template-columns: 1fr 2fr; gap: 10px; }
+.wxtrial-acts .wxtrial-btn { width: 100%; margin-top: 0; }
+@media (max-width: 520px) { .wxtrial-acts { grid-template-columns: 1fr; } }

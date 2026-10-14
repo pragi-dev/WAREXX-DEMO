@@ -856,7 +856,7 @@ def _send_cancel_note(c, sub, reason):
                 f"→ Keep my subscription, any time before {end}.\n\nTeam WAREXX\n")
         lead_mail._deliver(lead_mail._message(c["email"], "Your WAREXX subscription is cancelled", text,
                                               lead_mail._wrap("<p>" + html.escape(text).replace("\n\n", "</p><p>") + "</p>")))
-        lead_mail._deliver(lead_mail._message(lead_mail.NOTIFY_TO, f"WAREXX subscription cancelled: {c['company']}",
+        lead_mail._deliver(lead_mail._message(lead_mail.ACCOUNTS_TO, f"WAREXX subscription cancelled: {c['company']}",
                                               f"{c['company']} ({c['email']}) cancelled; access ends {end}.\nReason: {reason or '-'}\n",
                                               lead_mail._wrap(f"<p>{html.escape(c['company'])} ({html.escape(c['email'])}) cancelled; "
                                                               f"access ends {html.escape(end)}.</p><p>Reason: {html.escape(reason or '-')}</p>")))
@@ -989,7 +989,7 @@ def _send_receipt(ref):
                                lead_mail._wrap(f"<p>Hi {html.escape(first)},</p><p>Thank you — your payment for WAREXX is "
                                                f"confirmed{' (sandbox test)' if test else ''}.</p><table>{table}</table>"))
         lead_mail._deliver(m)
-        team = lead_mail._message(lead_mail.NOTIFY_TO, f"WAREXX subscription paid: {o['company']} ({PLANS[o['plan_code']]['name']})"
+        team = lead_mail._message(lead_mail.ACCOUNTS_TO, f"WAREXX subscription paid: {o['company']} ({PLANS[o['plan_code']]['name']})"
                                   + (" [sandbox]" if test else ""),
                                   "\n".join(f"{k}: {v or '-'}" for k, v in rows + [("Customer", o["name"]), ("Email", o["email"]),
                                                                                     ("Phone", o["phone"]), ("Company", o["company"]),

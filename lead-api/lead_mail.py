@@ -14,6 +14,10 @@ Settings — SERVER-SIDE environment variables only (never VITE_*, never in the 
     LEAD_MAIL_BACKEND   smtp to send for real; console (default) saves .eml files
     LEAD_MAIL_FROM      "WAREXX <sales@example.com>"
     LEAD_NOTIFY_TO      who receives the lead (default: the From address)
+    LEAD_DEMO_NOTIFY_TO who receives a demo request (a booked slot):
+                        default "marketing@aavoraa.com, tech@aavoraa.com"
+    LEAD_ACCOUNTS_TO    who receives payment receipts and cancellations (payments.py):
+                        default accounts@aavoraa.com
     LEAD_SMTP_HOST      e.g. smtpout.secureserver.net
     LEAD_SMTP_PORT      465 (SSL) or 587 (STARTTLS)
     LEAD_SMTP_USER      the mailbox user
@@ -47,6 +51,8 @@ def _env(name, default=""):
 MAIL_BACKEND = _env("LEAD_MAIL_BACKEND", "console")
 MAIL_FROM = _env("LEAD_MAIL_FROM", "WAREXX <noreply@example.com>")
 NOTIFY_TO = _env("LEAD_NOTIFY_TO", parseaddr(MAIL_FROM)[1])
+DEMO_NOTIFY_TO = _env("LEAD_DEMO_NOTIFY_TO", "marketing@aavoraa.com, tech@aavoraa.com")
+ACCOUNTS_TO = _env("LEAD_ACCOUNTS_TO", "accounts@aavoraa.com")
 SMTP_HOST = _env("LEAD_SMTP_HOST", "smtpout.secureserver.net")
 SMTP_PORT = int(_env("LEAD_SMTP_PORT", "465"))
 SMTP_USER = _env("LEAD_SMTP_USER", parseaddr(MAIL_FROM)[1])
@@ -276,9 +282,15 @@ def _notify_email(lead):
             ("Submitted", lead["submittedAt"])]
     table = "".join(f'<tr><td style="padding:3px 16px 3px 0;color:#6E675E">{k}</td>'
                     f"<td>{html.escape(str(v or '—'))}</td></tr>" for k, v in rows)
-    m = _message(NOTIFY_TO, f"New WAREXX lead ({lead['type']}): {lead['company'] or lead['name']}",
+    # a demo request (a booked slot): marketing and tech; every other form: LEAD_NOTIFY_TO
+    demo = bool(lead.get("slot")) or lead.get("type") == "demo"
+    intro = ("A visitor booked a WAREXX demo; their login email and password were emailed to them."
+             if demo else "A visitor sent the landing page form.")
+    m = _message(DEMO_NOTIFY_TO if demo else NOTIFY_TO,
+                 (f"New WAREXX demo request: {lead['company'] or lead['name']}" if demo
+                  else f"New WAREXX lead ({lead['type']}): {lead['company'] or lead['name']}"),
                  "\n".join(f"{k}: {v or '-'}" for k, v in rows) + "\n",
-                 _wrap(f"<p>A visitor sent the landing page form.</p><table>{table}</table>"))
+                 _wrap(f"<p>{intro}</p><table>{table}</table>"))
     m.replace_header("Reply-To", lead["email"])
     return m
 

@@ -323,7 +323,8 @@ ok(rows("SELECT status FROM billing_orders WHERE order_ref = %s", (a["order_ref"
 fake.set(a["order_ref"], "CHARGED")
 code, r = sub({"action": "status", "order": a["token"]})
 ok(r["status"] == "paid" and r["invoice_no"] and r["account"] == "needed" and r["period_end"], "the result page: paid, receipt number, account to create")
-ok(any(m["to"] == "asha@example.com" and "receipt" in m["subject"].lower() for m in mails()), "the receipt is emailed")
+ok(any(m["to"] == "asha@example.com" and "receipt" in m["subject"].lower() for m in mails()), "the receipt is emailed to the customer")
+ok(any(m["to"] == "accounts@aavoraa.com" and "paid" in m["subject"].lower() for m in mails()), "…and the payment details to accounts@aavoraa.com")
 
 print("the account")
 code, r = sub({"action": "account", "order": a["token"], "password": "short"})

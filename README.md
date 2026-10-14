@@ -115,6 +115,27 @@ orders and issues refunds under `/admin` → **Payments**. Settings, the flow, t
 database, tests and go-live steps: [docs/PAYMENTS.md](docs/PAYMENTS.md).
 Test: `python lead-api/payments_test.py`.
 
+## Who gets which email
+
+| Event | To |
+|---|---|
+| Demo booked (a time slot) | the visitor: demo link, login email and **password**; **marketing@aavoraa.com, tech@aavoraa.com**: the request (never the password) |
+| Payment confirmed | the customer: receipt; **accounts@aavoraa.com**: the payment details |
+| Subscription cancelled | the customer: confirmation; **accounts@aavoraa.com** |
+| Other landing forms | the visitor: thank-you; `LEAD_NOTIFY_TO` |
+
+Change the team addresses with `LEAD_DEMO_NOTIFY_TO` / `LEAD_ACCOUNTS_TO` (comma-separated).
+
+## The demo video
+
+After signing in with the emailed password, the visitor chooses **Watch demo video** or
+**Access demo trial**. To add the video, either:
+
+- set `VITE_DEMO_VIDEO_URL` (a YouTube or Vimeo link, or a video file's address) on Vercel and redeploy, or
+- put the file at `frontend/demo/public/demo-video.mp4` and push.
+
+Until then, the video panel says "coming soon" and offers the trial.
+
 ## Leads database and admin
 
 Every form sent from the landing page (contact, demo, brochure, plan enquiry…)

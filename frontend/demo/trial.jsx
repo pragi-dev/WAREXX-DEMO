@@ -297,3 +297,66 @@ export function TrialWatch({ end, skew = 0, subscriber = false }) {
   const ms = endMs.current - now
   return <div className={'wxtrial-timer' + (ms < 10 * 60 * 1000 ? ' soon' : '')} role="status">Demo time left <b>{left(ms)}</b></div>
 }
+
+// ---- after signing in: watch the demo video, or open the demo -----------------------------
+// The video: VITE_DEMO_VIDEO_URL (a YouTube / Vimeo link or a video file's address), or a
+// file dropped in as demo/public/demo-video.mp4 (served at /demo/demo-video.mp4). Without
+// either, "Watch demo video" says the video is coming soon.
+const VIDEO_URL = (import.meta.env.VITE_DEMO_VIDEO_URL || '').trim()
+const VIDEO_FILE = (import.meta.env.BASE_URL || '/') + 'demo-video.mp4'
+
+function embedOf(url) {
+  const yt = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([\w-]{6,})/.exec(url)
+  if (yt) return `https://www.youtube-nocookie.com/embed/${yt[1]}?rel=0&autoplay=1`
+  const vm = /vimeo\.com\/(?:video\/)?(\d+)/.exec(url)
+  if (vm) return `https://player.vimeo.com/video/${vm[1]}?autoplay=1`
+  return ''
+}
+
+async function findVideo() {
+  if (VIDEO_URL) return embedOf(VIDEO_URL) ? { embed: embedOf(VIDEO_URL) } : { file: VIDEO_URL }
+  try {      // a missing file answers with the demo page (HTML), not a video
+    const r = await fetch(VIDEO_FILE, { method: 'HEAD', cache: 'no-cache' })
+    if (r.ok && /^video\//.test(r.headers.get('content-type') || '')) return { file: VIDEO_FILE }
+  } catch { /* offline: no video */ }
+  return null
+}
+
+/** The choice right after signing in: the demo video, or the demo itself. */
+export function DemoWelcome({ email, onTrial }) {
+  const [watching, setWatching] = useState(false)
+  const [video, setVideo] = useState(undefined)        // undefined: looking; null: none yet
+  useEffect(() => { findVideo().then(setVideo) }, [])
+  const name = (email || '').split('@')[0]
+  if (watching) return (
+    <Shell wide>
+      <h1>WAREXX in a few minutes</h1>
+      <div className="wxtrial-video">
+        {video === undefined ? <p className="wxtrial-sub">Loading…</p>
+          : video?.embed ? <iframe src={video.embed} title="WAREXX demo video" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen />
+          : video?.file ? <video src={video.file} controls autoPlay playsInline />
+          : <div className="wxtrial-video-soon"><b>The demo video is coming soon.</b><span>Meanwhile, open the demo and explore it yourself — a short guided tour shows you around.</span></div>}
+      </div>
+      <div className="wxtrial-acts">
+        <button className="wxtrial-btn ghost" type="button" onClick={() => setWatching(false)}>Back</button>
+        <button className="wxtrial-btn" type="button" onClick={onTrial}>Access demo trial →</button>
+      </div>
+    </Shell>
+  )
+  return (
+    <Shell>
+      <h1>You’re in{name ? `, ${name}` : ''}!</h1>
+      <p className="wxtrial-sub">How would you like to start? Watch a short video of WAREXX, or go straight into the demo software with a sample business.</p>
+      <div className="wxtrial-choices">
+        <button className="wxtrial-choice" type="button" onClick={() => setWatching(true)}>
+          <span className="wxtrial-choice-ic" aria-hidden="true">▶</span>
+          <span><b>Watch demo video</b><small>See the key features in a few minutes</small></span>
+        </button>
+        <button className="wxtrial-choice primary" type="button" onClick={onTrial}>
+          <span className="wxtrial-choice-ic" aria-hidden="true">→</span>
+          <span><b>Access demo trial</b><small>Open the WAREXX software now</small></span>
+        </button>
+      </div>
+    </Shell>
+  )
+}
