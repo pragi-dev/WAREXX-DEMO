@@ -298,10 +298,12 @@ document.addEventListener('DOMContentLoaded', () => {
     $('[data-period]').textContent = q ? (plan === 'annual' ? '/ year' : '/ month') : (p.period || '');
     $('[data-pnote]').hidden = !p.note; $('[data-pnote]').textContent = p.note || '';
     $('[data-includes]').innerHTML = (p.includes || []).map((i) => `<li>${esc(i)}</li>`).join('');
-    $('[data-base]').textContent = q ? inr(q.base) : '—';
+    // without the server's figures (online payment not switched on here), the plan's own
+    // price and "+ GST" — never a made-up total
+    $('[data-base]').textContent = q ? inr(q.base) : (p.price || '—');
     $('[data-taxlabel]').textContent = q ? `GST (${Number(q.tax_percent)}%)` : 'GST';
-    $('[data-tax]').textContent = q ? inr(q.tax) : '—';
-    $('[data-total]').textContent = q ? inr(q.total) : '—';
+    $('[data-tax]').textContent = q ? inr(q.tax) : (p.tax ? 'added at checkout' : '—');
+    $('[data-total]').textContent = q ? inr(q.total) : 'at checkout';
     const test = q && server.environment === 'sandbox';
     $('[data-charge]').hidden = !test;
     $('[data-charge]').textContent = test ? `Test mode: HDFC’s sandbox will charge ${inr(q.charged)} instead.` : '';
@@ -342,7 +344,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const ready = server && server.enabled;
     const ok = !Object.keys(e).length && ready;
     btn.disabled = !ok;
-    $('[data-hint]').textContent = !ready ? '' : ok ? 'You’ll pay on HDFC Bank SmartGateway.' : 'Fill in all required details to continue.';
+    $('[data-hint]').textContent = !server ? 'Checking online payment…'
+      : !ready ? 'Online payment isn’t available on this site right now — contact warex.support@aavoraa.com to subscribe.'
+      : ok ? 'You’ll pay on HDFC Bank SmartGateway.' : 'Fill in all required details to continue.';
+    btn.textContent = server && !ready ? 'Online payment unavailable' : 'Proceed to payment';
     return ok;
   }
   ['input', 'change', 'focusout'].forEach((t) => form.addEventListener(t, (ev) => { if (ev.target.name) touched.add(ev.target.name); check(false); }));
