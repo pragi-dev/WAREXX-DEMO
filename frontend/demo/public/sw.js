@@ -336,8 +336,29 @@ async function answer(req, url) {
   // the demo's Sample Admin. (A recorded answer, above, wins when there is one.)
   if (AUTH[path]) return json(AUTH[path])
 
+  if (method === 'POST' && (path === '/api/documents/upload' || path === '/api/documents/manual')) {
+    return sampleInvoice(m, wh, path)
+  }
   if (method === 'GET' || method === 'HEAD') return missingRead(path)
   return acknowledgeWrite(req, path, m.meta)
+}
+
+// An invoice upload (or a blank manual entry): there is no server here to read a
+// file, and pretending to would be a lie about the visitor's own bill. So the
+// answer is one of the sample business's recorded invoices still awaiting review
+// (in this warehouse when it has one), in the shape the upload answers with, and
+// marked as the demo's — the screen says so instead of "recognised".
+async function sampleInvoice(m, wh, path) {
+  const pickFrom = (w) => [...m.exact.values()].filter((e) => e.method === 'GET' && e.wh === w && /^\/api\/documents\/\d+$/.test(e.path) && e.body)
+  const docs = [...pickFrom(String(wh)), ...pickFrom('-')]
+  const parsed = docs.map((e) => { try { return JSON.parse(e.body) } catch { return null } }).filter((j) => j && j.document)
+  const sample = parsed.find((j) => j.document.status === 'needs_review') || parsed[0]
+  const message = path.endsWith('/manual')
+    ? 'This is the demo — new entries are not saved here, so here is a sample invoice to review instead.'
+    : 'This is the demo — your file is not read here. Here is a sample invoice as WAREXX extracted it: review it, then Confirm.'
+  if (!sample) return json({ detail: message }, 409)
+  return json({ ...sample, demo: true, message, supplier_recognised: !!sample.document.supplier_id,
+    profile_used: false, lr_filled: [] })
 }
 
 // Of several recorded answers for one path, the one whose query shares the

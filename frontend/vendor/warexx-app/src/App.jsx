@@ -18891,7 +18891,7 @@ export default function App() {
       const res = await api.createManualDocument()
       await refresh()
       openInvoice(res.document.id, null); setInvReload((n) => n + 1)
-      toast('✓ Blank invoice — key it in and Confirm', 'ok')
+      toast(res.demo && res.message ? res.message : '✓ Blank invoice — key it in and Confirm', 'ok')
     } catch (err) {
       // A backend started before this endpoint existed 404s here while serving
       // the new screen off disk. That is a restart, not a fault, and saying so
@@ -18917,6 +18917,8 @@ export default function App() {
       const res = await api.upload(files)
       await refresh()
       openInvoice(res.document.id, null); setInvReload((n) => n + 1)
+      // a server answering for itself (the public demo opens a sample invoice and says so)
+      if (res.demo && res.message) { toast(res.message, 'ok'); return }
       toast(res.supplier_recognised
         ? `✓ Recognised ${res.document.supplier_name}${res.profile_used ? ' (using trained format)' : ''}`
         : '✓ Extracted — supplier not recognised, review & train', 'ok')

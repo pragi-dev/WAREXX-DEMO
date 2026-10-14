@@ -62,6 +62,9 @@ That one script:
    asks, answered by the real backend with "today" pinned to the recording day.
    sw.js replays them (close phrasings too); anything else is told it is not
    part of the demo, with questions that are.
+6. **Records the sample invoices' scans** (`record_invoice_images.py`): the
+   page beside each invoice's reading. An upload in the demo opens one of these
+   sample invoices and says so: a visitor's own file is never read.
 
 Then rebuild and check the demo:
 
