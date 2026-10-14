@@ -177,6 +177,13 @@ async function assistAnswer(m, req, wh) {
 // a close-enough phrasing answers too. Anything else is told it is not part of
 // the demo, with the questions that are — never answered with something else.
 const ASK = '/api/command/ask', TRACE = '/api/command/trace'
+// Like norm, but letters of every script are kept, with their vowel signs: the
+// box listens for Tamil as well as English (record_command_ask.py norm, in step)
+const cmdNorm = (s) => String(s || '').toLowerCase().replace(/[’']/g, '')
+  .replace(/[^\p{L}\p{M}\p{N}\- ]+/gu, ' ').split(/\s+/).filter(Boolean).join(' ')
+  .replace(/^(?:(?:hey|ok|okay) )?warexx /, '').replace(/^please /, '').replace(/ please$/, '')
+  .replace(/^show me /, 'show ')
+const TAMIL = /[\u0B80-\u0BFF]/
 let cmdIndexFor = null, cmdIndex = null
 function commandKeys(m) {
   if (cmdIndexFor !== m) {
@@ -191,7 +198,7 @@ function commandKeys(m) {
 async function commandAnswer(m, req) {
   let body = {}
   try { body = await req.clone().json() } catch { /* empty */ }
-  const t = norm(body.q)
+  const t = cmdNorm(body.q)
   let hit = t && m.exact.get(`POST - ${ASK}#Q:${t}`)
   if (!hit && t) {
     const want = words(t)
@@ -203,6 +210,15 @@ async function commandAnswer(m, req) {
   let sugg = ["Today's total sales", "Today's profit", 'Which products are low in stock?', 'Which floor has the highest sales?']
   const ex = m.exact.get('GET - /api/command/examples')
   try { if (ex) sugg = ((await (await replay(ex)).json()).examples || []).map((e) => e.q).filter(Boolean).slice(0, 6) } catch { /* defaults */ }
+  // asked in Tamil: suggest the Tamil questions the demo can answer
+  if (TAMIL.test(String(body.q || ''))) {
+    const ta = commandKeys(m).map((c) => c.text).filter((x) => TAMIL.test(x))
+    if (ta.length) {
+      return json({ ok: false, demo: true, title: 'இந்த டெமோவில் இல்லை',
+        line: 'இந்த டெமோ அதன் மாதிரி வணிகம் பற்றிய சில கேள்விகளுக்கு பதில் அளிக்கும். இவற்றில் ஒன்றைக் கேளுங்கள்:',
+        suggestions: [...new Set(ta)].slice(0, 6) })
+    }
+  }
   return json({ ok: false, demo: true, title: 'Not part of this demo',
     line: 'The demo answers a set of questions about its sample business. Try one of these:', suggestions: sugg })
 }

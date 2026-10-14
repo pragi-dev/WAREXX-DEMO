@@ -32,6 +32,7 @@ import re
 import shutil
 import sys
 import tempfile
+import unicodedata
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -54,9 +55,11 @@ def scrub(text):
 
 
 def norm(text):
-    """The words of a question, as sw.js normalises them (keep in step)."""
+    """The words of a question, as sw.js normalises them (keep in step: sw.js
+    cmdNorm). Letters of any script are kept, with their vowel signs (Tamil is
+    written with them), so a question spoken in Tamil has words too."""
     t = str(text or "").lower().replace("’", "").replace("'", "")
-    t = re.sub(r"[^a-z0-9\- ]+", " ", t)
+    t = "".join(ch if unicodedata.category(ch)[0] in "LMN" or ch in "- " else " " for ch in t)
     t = " ".join(t.split())
     t = re.sub(r"^(?:(?:hey|ok|okay) )?warexx ", "", t)
     t = re.sub(r"^please ", "", t)
@@ -111,7 +114,7 @@ def real(text):
     return re.sub(r"(?<![A-Za-z0-9])SMPL-(?=[A-Z0-9])", "ESSA-", str(text))
 
 
-def ask(q):
+def ask(q, expect=None):
     t = norm(q)
     if not t or f"POST - {ASK}#Q:{t}" in new:
         return None
@@ -119,8 +122,15 @@ def ask(q):
     if r.status_code >= 500:
         print("  !", r.status_code, q)
         return None
-    put(f"POST - {ASK}#Q:{t}", "POST", ASK, "", r.status_code, scrub(r.text))
     j = r.json()
+    title = str(j.get("title") or "")
+    if expect and (j.get("ok") is False or not (title == expect or title.startswith(expect + " ")
+                                                 or title.startswith(expect + "—") or title.startswith(expect))):
+        print(f"  {q!r}: answered as {title!r}, not {expect!r} — left to the demo's suggestions")
+        return None
+    if expect == "Sales" and not title.startswith("Sales"):
+        return None
+    put(f"POST - {ASK}#Q:{t}", "POST", ASK, "", r.status_code, scrub(r.text))
     print(f"  {q!r}: {j.get('title')} — {str(j.get('headline') or j.get('line') or '')[:70]}")
     # a code that matched several records: each one, as the box asks for it (api.js qs())
     for c in j.get("choices") or []:
@@ -164,9 +174,33 @@ for e in manifest["entries"]:
     # (stores, tills and people are not clickable questions on this screen)
 questions += sorted(s for s in seen if s)
 
-print(f"[record_command_ask] today = {FIXED_NOW.date()}; {len(questions)} questions")
+# 3. spoken in Tamil (the box listens for Tamil too): kept only where the server answers it
+# (question, the answer it must be): the server's keyword reading of Tamil is
+# coarse, so an answer is kept only when it is the one the question asks for —
+# a wrong figure in a demo is worse than "try one of these"
+TAMIL = [
+    ("இன்றைய மொத்த விற்பனை", "Today's Sales"), ("இன்றைய விற்பனை", "Today's Sales"),
+    ("இன்று விற்பனை எவ்வளவு", "Today's Sales"), ("இன்றைய மொத்த விற்பனை எவ்வளவு", "Today's Sales"),
+    ("இன்றைய லாபம்", "Today's Profit"), ("இன்று லாபம் எவ்வளவு", "Today's Profit"),
+    ("இன்றைய தள்ளுபடி", "Today's Discounts"), ("இன்று கொடுத்த தள்ளுபடி", "Today's Discounts"),
+    ("இன்றைய இன்வாய்ஸ்", "Today's Invoice"), ("இன்றைய மொத்த இன்வாய்ஸ்", "Today's Invoice"),
+    ("இன்றைய ஜிஆர்என்", "Today's GRN"), ("இன்றைய எல்ஆர்", "Today's LR"),
+    ("குறைந்த இருப்பு பொருட்கள்", "Low Stock"), ("குறைவான இருப்பு", "Low Stock"), ("இருப்பு குறைவான பொருட்கள்", "Low Stock"),
+    ("விற்பனை இல்லாத பொருட்கள்", "Dead Stock"), ("90 நாட்களாக விற்பனை இல்லாத பொருட்கள்", "Dead Stock"),
+    ("எந்த தளத்தில் அதிக விற்பனை", "Highest Sales by Floor"), ("எந்த கடையில் அதிக விற்பனை", "Highest Sales by Store"),
+    ("எந்த கிடங்கில் அதிக இருப்பு மதிப்பு", "Highest Stock Value"),
+    ("நிலுவையில் உள்ள சப்ளையர் பணம்", "Pending Supplier Payments"), ("சப்ளையர் நிலுவை தொகை", "Pending Supplier Payments"),
+    ("இன்றைய ரிட்டர்ன்", "Today's Returns"), ("நேற்றைய விற்பனை", "Yesterday's Sales"),
+    ("இந்த மாத விற்பனை", "Sales"), ("அதிகம் விற்பனையான பொருட்கள்", "Highest Sales by Product"),
+    ("இருப்பு மதிப்பு", "Stock Available"), ("கீழ் தளத்தில் எவ்வளவு இருப்பு உள்ளது", "Stock on Ground Floor"),
+    ("இன்று என்ன நடந்தது", "Today's Activity"),
+]
+
+print(f"[record_command_ask] today = {FIXED_NOW.date()}; {len(questions)} questions + {len(TAMIL)} in Tamil")
 for q in questions:
     ask(q)
+for q, must in TAMIL:
+    ask(q, expect=must)
 
 before = len(manifest["entries"])
 keep = [e for e in manifest["entries"] if e.get("path") not in (ASK, TRACE)]
