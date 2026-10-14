@@ -30,6 +30,10 @@ const env = {
   ESSA_DATABASE_URL: `sqlite:///${fwd(path.join(WORK, 'demo.db'))}`,
   DATABASE_URL: `sqlite:///${fwd(path.join(WORK, 'shop.db'))}`,
   ESSA_WAREHOUSE_DB: path.join(WORK, 'demo.db'),
+  // the stores' till, for the Command Center and the other company-wide sales
+  // figures (app/backend/app/services/pos_sales.py): without it the backend
+  // reads its own development till instead of the sample business
+  ESSA_POS_DB: path.join(WORK, 'shop.db'),
   ESSA_STATE_DIR: WORK,
   ESSA_COMPANY_NAME: 'Sample Company',
   ESSA_COMPANY_GSTIN: '33AAACS0000A1Z5',
@@ -60,6 +64,10 @@ if (!up) { stop(); throw new Error('the recording server did not start') }
 log('recording')
 const rec = spawnSync(process.execPath, [path.join(HERE, 'record.mjs'), `http://127.0.0.1:${PORT}`],
   { env, stdio: 'inherit' })
+if (rec.status !== 0) { stop(); throw new Error(`record.mjs failed (exit ${rec.status})`) }
+log('recording the Command Center')
+const cmd = spawnSync(process.execPath, [path.join(HERE, 'record_command.mjs'), `http://127.0.0.1:${PORT}`],
+  { env, stdio: 'inherit' })
 stop()
-if (rec.status !== 0) throw new Error(`record.mjs failed (exit ${rec.status})`)
+if (cmd.status !== 0) throw new Error(`record_command.mjs failed (exit ${cmd.status})`)
 log('done — now: cd landing-demo/frontend && npm run build:demo')

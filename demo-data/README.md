@@ -53,6 +53,10 @@ That one script:
    no vision key (nothing is billed).
 3. **Records** every screen with headless Edge/Chrome (`record.mjs`) into
    `recorded/`, passing every answer through `scrub.mjs`.
+4. **Records the Command Center** (`record_command.mjs`): the overview for the
+   company and each warehouse, the last day and the six before it. The server
+   reads the stores' till from `ESSA_POS_DB`; without it the Command Center says
+   "The stores' till database is not readable from here".
 
 Then rebuild and check the demo:
 
