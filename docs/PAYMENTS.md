@@ -220,6 +220,39 @@ published test card VISA 4012 0000 0000 1097 → simulator → back to `/api/pay
 5. **First live payment:** make one small real purchase, check `/admin` → Payments and the HDFC
    dashboard, then refund it from `/admin`.
 
+## Switching it on for the live site (Vercel, this repo)
+
+The Vercel project that runs the API is `pragi1/warexx-demo-frontend` (https://warexx-demo-frontend.vercel.app).
+The other two projects (`warexxdemo`, `warexx-demo`) serve the pages only, so `/api/*` answers 404 there.
+
+1. **Databases:** in the Vercel dashboard, open the project, then **Storage → Create Database → Neon (Postgres)**.
+   - Create `warexx-leads` and connect it to Production with the default prefix. This gives `POSTGRES_URL`, used by the leads.
+   - Create `warexx-billing` and connect it with the custom prefix **`BILLING`**. This gives `BILLING_DATABASE_URL`, used by billing.
+   - The tables create themselves on first use.
+2. **Settings:** from the repo root, run these once, as you:
+
+   ```bash
+   npx vercel login
+   npx vercel link
+   node frontend/tools/vercel-env.mjs --domain warexx-demo-frontend.vercel.app
+   ```
+
+   The script copies the HDFC values and the GST rate from `.env`. It also makes new
+   `DEMO_TRIAL_SECRET`, `ADMIN_PASSWORD` and webhook credentials, and sets
+   `HDFC_RETURN_URL` for that domain. No value is printed. The admin and webhook values are
+   written to `lead-api/data/live-settings.local.txt` (git-ignored).
+3. **Redeploy:** run `npx vercel --prod`, or use Redeploy in the dashboard. Settings only apply to new deployments.
+4. **HDFC dashboard** (UAT while `HDFC_ENV=sandbox`): Settings → Webhooks.
+   - Set the URL, username and password from `live-settings.local.txt`, and enable the order and refund events.
+   - The return URL is sent with every session, so it needs no dashboard change.
+5. **Check:** `POST https://<domain>/api/subscribe {"action":"config"}` should answer `"enabled": true`.
+   Then make one ₹1 sandbox payment from the pricing page.
+6. **Real money:** get production credentials from HDFC, set `HDFC_ENV=production`, the production
+   Merchant ID / API key / Response Key and `HDFC_PAYMENT_PAGE_CLIENT_ID=<Merchant ID>` in `.env`,
+   run the script again and redeploy.
+   - Emails are only sent live once `.env` has `LEAD_MAIL_BACKEND=smtp` and a real mailbox; the
+     script copies those too.
+
 ## Operations
 
 - **Reconciliation:**
