@@ -70,4 +70,7 @@ const cmd = spawnSync(process.execPath, [path.join(HERE, 'record_command.mjs'), 
   { env, stdio: 'inherit' })
 stop()
 if (cmd.status !== 0) throw new Error(`record_command.mjs failed (exit ${cmd.status})`)
+log("recording the Command Center's Ask WAREXX")
+const ask = spawnSync(PY, [path.join(HERE, 'record_command_ask.py')], { cwd: BACKEND, env, stdio: 'inherit' })
+if (ask.status !== 0) throw new Error(`record_command_ask.py failed (exit ${ask.status})`)
 log('done — now: cd landing-demo/frontend && npm run build:demo')

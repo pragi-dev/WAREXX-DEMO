@@ -172,6 +172,41 @@ async function assistAnswer(m, req, wh) {
     intent: { intent: 'NONE', filters: {} }, context: body.context || {} })
 }
 
+// ---- the Command Center's Ask WAREXX (demo-data/tools/record_command_ask.py) ----
+// A question is recorded under its words (norm, as the recorder normalises them);
+// a close-enough phrasing answers too. Anything else is told it is not part of
+// the demo, with the questions that are — never answered with something else.
+const ASK = '/api/command/ask', TRACE = '/api/command/trace'
+let cmdIndexFor = null, cmdIndex = null
+function commandKeys(m) {
+  if (cmdIndexFor !== m) {
+    cmdIndexFor = m; cmdIndex = []
+    for (const k of m.exact.keys()) {
+      const mm = k.match(/^POST - \/api\/command\/ask#Q:(.*)$/)
+      if (mm) cmdIndex.push({ text: mm[1], words: words(mm[1]), key: k })
+    }
+  }
+  return cmdIndex
+}
+async function commandAnswer(m, req) {
+  let body = {}
+  try { body = await req.clone().json() } catch { /* empty */ }
+  const t = norm(body.q)
+  let hit = t && m.exact.get(`POST - ${ASK}#Q:${t}`)
+  if (!hit && t) {
+    const want = words(t)
+    let best = null, score = 0
+    for (const c of commandKeys(m)) { const s = dice(want, c.words); if (s > score) { score = s; best = c } }
+    if (best && score >= 0.8) hit = m.exact.get(best.key)
+  }
+  if (hit) return replay(hit)
+  let sugg = ["Today's total sales", "Today's profit", 'Which products are low in stock?', 'Which floor has the highest sales?']
+  const ex = m.exact.get('GET - /api/command/examples')
+  try { if (ex) sugg = ((await (await replay(ex)).json()).examples || []).map((e) => e.q).filter(Boolean).slice(0, 6) } catch { /* defaults */ }
+  return json({ ok: false, demo: true, title: 'Not part of this demo',
+    line: 'The demo answers a set of questions about its sample business. Try one of these:', suggestions: sugg })
+}
+
 // ---- product search: the recorded catalogue, filtered as the server filters ----
 // One recording of the whole catalogue per warehouse; a search is that list with
 // the same four fields matched, so typing "shirt" shows shirts rather than the
@@ -239,6 +274,14 @@ async function answer(req, url) {
   // nobody recorded must say "nothing matches", not replay some other item.
   if (method === 'GET' && path === LOCATE) return locateAnswer(m, url)
   if (method === 'POST' && path === CMD) return assistAnswer(m, req, wh)
+  // the Command Center's question box (record_command_ask.py)
+  if (method === 'POST' && path === ASK) return commandAnswer(m, req)
+  // a code is followed only if it was recorded — never some other code's trail
+  if (method === 'GET' && path === TRACE) {
+    const e = m.exact.get(`GET - ${path}${url.search}`)
+    return e ? replay(e) : json({ ok: false, title: 'Not part of this demo',
+      line: 'The demo can follow the codes in its sample business — click a product in Leaders, or ask one of the suggested questions.' })
+  }
   // a search the recording has no exact answer for: the catalogue, filtered
   if (method === 'GET' && path === '/api/inventory/products' && (url.searchParams.get('q') || '').trim()
       && !m.exact.get(key)) {

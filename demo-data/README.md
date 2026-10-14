@@ -57,6 +57,11 @@ That one script:
    company and each warehouse, the last day and the six before it. The server
    reads the stores' till from `ESSA_POS_DB`; without it the Command Center says
    "The stores' till database is not readable from here".
+5. **Records the Command Center's Ask WAREXX** (`record_command_ask.py`): its
+   example questions, everyday phrasings, and what clicking a product or floor
+   asks, answered by the real backend with "today" pinned to the recording day.
+   sw.js replays them (close phrasings too); anything else is told it is not
+   part of the demo, with questions that are.
 
 Then rebuild and check the demo:
 
