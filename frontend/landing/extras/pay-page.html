@@ -1,0 +1,566 @@
+<!-- The /pay page's own content: what "Subscribe" (Monthly / Annual) opens, with
+     ?plan=monthly or ?plan=annual. tools/landing.mjs builds /pay from the landing
+     page: same head, styles, header, footer and scripts, with <main> holding this.
+
+       1. billing details → "Proceed to payment"
+       2. the Terms & Conditions pop-up (/legal) → "Accept & pay"
+       3. POST /api/subscribe {action: "checkout"} → an order on the server (prices and
+          GST are the server's) → HDFC Bank SmartGateway's payment page
+       4. HDFC → /api/payment/return (checked with HDFC, server to server) → back here
+          as /pay/?order=…: paid, failed, pending or cancelled (with Retry)
+       5. paid: "Create your account" → WAREXX
+
+     No card, UPI or bank details are ever asked for here: the customer enters them
+     on HDFC's own page. Nothing on this page decides an amount or a status. -->
+<style>
+  .pay { padding: calc(var(--nav-h) + 40px) 0 80px; }
+  .pay__head { max-width: 720px; margin-bottom: 26px; }
+  .pay__head h1 { font: 700 clamp(30px, 3.6vw, 44px)/1.1 var(--display); letter-spacing: -.03em; color: var(--ink); }
+  .pay__head p { margin-top: 10px; color: var(--mute); font-size: 16px; }
+  .pay__test { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 22px; padding: 12px 14px; border-radius: 12px;
+    background: rgba(238, 122, 30, .08); border: 1px solid rgba(238, 122, 30, .32); color: var(--ink); font-size: 14px; line-height: 1.5; }
+  .pay__test b { color: var(--accent-text); }
+  .pay__grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  .pay__card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: clamp(18px, 2.6vw, 30px); box-shadow: var(--shadow); }
+  .pay__card h2 { font: 700 20px/1.2 var(--display); letter-spacing: -.02em; color: var(--ink); margin-bottom: 4px; }
+  .pay__card .pay__sub { color: var(--mute); font-size: 14px; margin-bottom: 18px; }
+  .pay__fields { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .pay .fld input[aria-invalid="true"], .pay .fld select[aria-invalid="true"] { border-color: #D2452F; }
+  .pay__ferr { font-size: 12.5px; color: #D2452F; min-height: 0; }
+  .pay__secure { display: flex; gap: 12px; align-items: flex-start; margin-top: 22px; padding: 14px; border-radius: 12px;
+    background: var(--surface2); border: 1px solid var(--line2); font-size: 13.5px; line-height: 1.55; color: var(--mute); }
+  .pay__secure b { color: var(--ink); }
+  .pay__secure svg { flex: none; width: 22px; height: 22px; stroke: var(--accent-text); fill: none; stroke-width: 1.8; margin-top: 1px; }
+  .pay__sum { position: sticky; top: calc(var(--nav-h) + 20px); }
+  .pay__plans { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; border-radius: 999px; background: var(--tint); margin-bottom: 18px; }
+  .pay__plans button { height: 38px; border-radius: 999px; font: 600 14px var(--sans); color: var(--mute); }
+  .pay__plans button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+  .pay__price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+  .pay__price b { font: 700 34px/1 var(--display); letter-spacing: -.03em; color: var(--ink); }
+  .pay__price > span { color: var(--mute); font-size: 14px; }
+  .pay__pnote { margin-top: 6px; font-size: 13.5px; font-weight: 500; color: var(--accent-text); }
+  .pay__list { margin: 16px 0; padding: 14px 0; border-block: 1px solid var(--line); display: grid; gap: 8px; }
+  .pay__list li { display: flex; gap: 8px; font-size: 14px; color: var(--ink); }
+  .pay__list li::before { content: "✓"; color: var(--ok); font-weight: 700; }
+  .pay__lines { display: grid; gap: 6px; margin-bottom: 14px; font-size: 14px; color: var(--mute); }
+  .pay__lines div { display: flex; justify-content: space-between; gap: 12px; }
+  .pay__total { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; color: var(--ink);
+    padding-top: 10px; border-top: 1px solid var(--line); margin-bottom: 6px; }
+  .pay__total b { font: 700 20px var(--display); }
+  .pay__charge { font-size: 13px; color: var(--accent-text); font-weight: 500; margin-bottom: 14px; }
+  .pay__btn { width: 100%; }
+  .pay__btn[disabled] { opacity: .5; cursor: not-allowed; filter: grayscale(.3); box-shadow: none; }
+  .pay__hint { margin-top: 10px; font-size: 12.5px; color: var(--mute); text-align: center; }
+  .pay__err { margin-top: 12px; font-size: 13.5px; color: #D2452F; }
+  .pay__narrow { max-width: 560px; margin: 0 auto; }
+  .pay__state { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 18px; }
+  .pay__state i { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+    font-weight: 700; font-size: 18px; color: #fff; background: var(--mute); }
+  .pay__state[data-tone="ok"] i { background: var(--ok); }
+  .pay__state[data-tone="bad"] i { background: #D2452F; }
+  .pay__state[data-tone="wait"] i { background: var(--accent); }
+  .pay__state h2 { margin: 0 0 4px; }
+  .pay__state p { color: var(--mute); font-size: 14.5px; line-height: 1.55; }
+  .pay__spin { width: 18px; height: 18px; border-radius: 50%; border: 2.5px solid rgba(255,255,255,.45); border-top-color: #fff;
+    animation: payspin .8s linear infinite; }
+  @keyframes payspin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .pay__spin { animation: none; } }
+  .pay__facts { display: grid; gap: 8px; margin: 4px 0 18px; padding: 14px 0; border-block: 1px solid var(--line); font-size: 14px; }
+  .pay__facts div { display: flex; justify-content: space-between; gap: 14px; }
+  .pay__facts span { color: var(--mute); }
+  .pay__facts b { color: var(--ink); font-weight: 600; text-align: right; }
+  .pay__acts { display: flex; gap: 10px; flex-wrap: wrap; }
+  .pay__acts .btn { flex: 1; }
+  .pay form.pay__stack { display: grid; gap: 14px; }
+  .pay__mine { margin-bottom: 22px; }
+  .pay__mine table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 12px; }
+  .pay__mine th { text-align: left; font-weight: 600; color: var(--mute); padding: 6px 8px 6px 0; border-bottom: 1px solid var(--line); }
+  .pay__mine td { padding: 8px 8px 8px 0; border-bottom: 1px solid var(--line); color: var(--ink); }
+  .pay__pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: var(--tint); color: var(--ink); }
+  .pay__pill[data-tone="ok"] { background: rgba(35, 136, 90, .14); color: var(--ok); }
+  .pay__pill[data-tone="bad"] { background: rgba(210, 69, 47, .12); color: #D2452F; }
+  .pay__scroll { overflow-x: auto; }
+  .pay__go { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(8, 9, 11, .72); backdrop-filter: blur(3px); }
+  .pay__go div { display: flex; gap: 12px; align-items: center; padding: 18px 22px; border-radius: 14px; background: var(--surface);
+    border: 1px solid var(--line); color: var(--ink); font-weight: 500; box-shadow: var(--shadow-lg); }
+  .pay__go .pay__spin { border-color: rgba(238, 122, 30, .3); border-top-color: var(--accent); }
+  /* the Terms & Conditions pop-up */
+  .terms { width: min(620px, calc(100vw - 32px)); max-height: min(86vh, 760px); padding: 0; border: 1px solid var(--line); border-radius: 18px;
+    background: var(--surface); color: var(--ink); box-shadow: var(--shadow-lg); overflow: hidden; }
+  .terms::backdrop { background: rgba(8, 9, 11, .62); backdrop-filter: blur(3px); }
+  .terms__in { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; max-height: min(86vh, 760px); }
+  .terms__head { padding: 22px 24px 12px; border-bottom: 1px solid var(--line); }
+  .terms__head h2 { font: 700 22px/1.2 var(--display); letter-spacing: -.02em; }
+  .terms__head p { margin-top: 4px; font-size: 14px; color: var(--mute); }
+  .terms__body { overflow: auto; padding: 16px 24px; display: grid; gap: 12px; }
+  .terms__body h3 { font: 600 14.5px var(--sans); color: var(--ink); }
+  .terms__body p { font-size: 14px; line-height: 1.6; color: var(--mute); margin-top: 2px; }
+  .terms__links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .terms__links a { padding: 7px 11px; border-radius: 999px; font-size: 13px; font-weight: 500; color: var(--accent-text); border: 1px solid rgba(238, 122, 30, .35); }
+  .terms__foot { padding: 14px 24px 20px; border-top: 1px solid var(--line); display: grid; gap: 14px; }
+  .terms__check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.5; color: var(--ink); cursor: pointer; }
+  .terms__check input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--accent); flex: none; }
+  .terms__btns { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  .terms__btns .btn--ghost { border-color: var(--line2); color: var(--ink); background: transparent; }
+  @media (max-width: 900px) {
+    .pay__grid { grid-template-columns: 1fr; }
+    .pay__sum { position: static; }
+  }
+  @media (max-width: 560px) {
+    .pay__fields { grid-template-columns: 1fr; }
+    .terms__btns .btn, .pay__acts .btn { flex: 1 1 100%; }
+  }
+</style>
+
+<section class="pay" id="pay">
+  <div class="wrap">
+    <!-- 1: details -->
+    <div data-step="details">
+      <header class="pay__head">
+        <p class="eyebrow">Subscribe</p>
+        <h1>Complete your WAREXX subscription</h1>
+        <p>Enter your billing details, then pay securely on HDFC Bank’s SmartGateway.</p>
+      </header>
+      <p class="pay__test" role="note" data-envnote hidden></p>
+
+      <div class="pay__card pay__mine" data-mine hidden>
+        <h2>Your subscription</h2>
+        <p class="pay__sub" data-mine-line></p>
+        <div class="pay__scroll"><table>
+          <thead><tr><th>Date</th><th>Plan</th><th>Amount</th><th>Status</th><th>Receipt</th></tr></thead>
+          <tbody data-mine-rows></tbody>
+        </table></div>
+      </div>
+
+      <div class="pay__grid">
+        <form class="pay__card" id="payForm" novalidate>
+          <h2>Billing details</h2>
+          <p class="pay__sub">Fields marked * are required.</p>
+          <div class="pay__fields">
+            <label class="fld"><span>Full name *</span><input name="name" autocomplete="name" maxlength="80" required><small class="pay__ferr" data-err="name"></small></label>
+            <label class="fld"><span>Work email *</span><input name="email" type="email" autocomplete="email" maxlength="254" required><small class="pay__ferr" data-err="email"></small></label>
+            <label class="fld"><span>Mobile number *</span><input name="phone" type="tel" autocomplete="tel" maxlength="20" required><small class="pay__ferr" data-err="phone"></small></label>
+            <label class="fld"><span>Company *</span><input name="company" autocomplete="organization" maxlength="120" required><small class="pay__ferr" data-err="company"></small></label>
+            <label class="fld fld--full"><span>GSTIN <em>(optional, for a GST invoice)</em></span><input name="gstin" maxlength="15" autocapitalize="characters" spellcheck="false"><small class="pay__ferr" data-err="gstin"></small></label>
+            <label class="fld fld--full"><span>Billing address *</span><input name="address" autocomplete="street-address" maxlength="200" required><small class="pay__ferr" data-err="address"></small></label>
+            <label class="fld"><span>City *</span><input name="city" autocomplete="address-level2" maxlength="80" required><small class="pay__ferr" data-err="city"></small></label>
+            <label class="fld"><span>State / Region *</span><input name="state" autocomplete="address-level1" maxlength="80" required><small class="pay__ferr" data-err="state"></small></label>
+            <label class="fld"><span>PIN / Postal code *</span><input name="postcode" autocomplete="postal-code" maxlength="12" required><small class="pay__ferr" data-err="postcode"></small></label>
+            <label class="fld"><span>Country *</span><select name="country" autocomplete="country-name" required></select><small class="pay__ferr" data-err="country"></small></label>
+          </div>
+          <p class="pay__secure"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6l7-3z"/><path d="M9 12l2 2 4-4"/></svg>
+            <span><b>Secure payment by HDFC Bank SmartGateway.</b> You’ll choose UPI, card or net banking on HDFC Bank’s own page.
+            WAREXX never sees or stores your card, UPI or bank details.</span></p>
+        </form>
+
+        <aside class="pay__card pay__sum" aria-label="Order summary">
+          <h2>Order summary</h2>
+          <p class="pay__sub">WAREXX subscription</p>
+          <div class="pay__plans" role="group" aria-label="Plan">
+            <button type="button" data-plan="monthly" aria-pressed="false">Monthly</button>
+            <button type="button" data-plan="annual" aria-pressed="false">Annual</button>
+          </div>
+          <div class="pay__price"><b data-price></b><span data-period></span></div>
+          <p class="pay__pnote" data-pnote hidden></p>
+          <ul class="pay__list" data-includes></ul>
+          <div class="pay__lines">
+            <div><span>Price</span><span data-base></span></div>
+            <div><span data-taxlabel>GST</span><span data-tax></span></div>
+          </div>
+          <div class="pay__total"><span>Total (INR)</span><b data-total></b></div>
+          <p class="pay__charge" data-charge hidden></p>
+          <button class="btn btn--primary pay__btn" type="submit" form="payForm" data-complete disabled>Proceed to payment</button>
+          <p class="pay__hint" data-hint>Fill in all required details to continue.</p>
+          <p class="pay__err" role="alert" data-payerr hidden></p>
+        </aside>
+      </div>
+    </div>
+
+    <!-- an account exists for this email: sign in first -->
+    <div class="pay__narrow" data-step="signin" hidden>
+      <header class="pay__head"><p class="eyebrow">Welcome back</p><h1>Sign in to continue</h1>
+        <p>There’s already a WAREXX account for this email. Sign in to pay for it.</p></header>
+      <form class="pay__card pay__stack" id="signinForm" novalidate>
+        <label class="fld"><span>Email</span><input name="email" type="email" autocomplete="username" readonly></label>
+        <label class="fld"><span>Password</span><input name="password" type="password" autocomplete="current-password" required></label>
+        <p class="pay__err" role="alert" data-signerr hidden></p>
+        <button class="btn btn--primary pay__btn" type="submit">Sign in &amp; continue to payment</button>
+        <button class="btn btn--ghost pay__btn" type="button" data-signin-back>Back</button>
+      </form>
+    </div>
+
+    <!-- after HDFC: the result -->
+    <div class="pay__narrow" data-step="result" hidden>
+      <header class="pay__head"><p class="eyebrow">Payment</p><h1 data-r-title>Confirming your payment</h1></header>
+      <div class="pay__card">
+        <div class="pay__state" data-r-state data-tone="wait"><i aria-hidden="true" data-r-icon><span class="pay__spin"></span></i>
+          <div><h2 data-r-head>Checking with HDFC Bank…</h2><p data-r-text>This usually takes a few seconds. Please keep this page open.</p></div></div>
+        <div class="pay__facts" data-r-facts hidden></div>
+        <div class="pay__acts" data-r-acts></div>
+        <p class="pay__err" role="alert" data-r-err hidden></p>
+        <form class="pay__stack" id="acctForm" novalidate hidden>
+          <h2>Create your WAREXX account</h2>
+          <p class="pay__sub">Choose a password to sign in with this email.</p>
+          <label class="fld"><span>Email</span><input name="email" type="email" autocomplete="username" readonly></label>
+          <label class="fld"><span>Password <em>(at least 8 characters)</em></span><input name="password" type="password" autocomplete="new-password" minlength="8" required></label>
+          <label class="fld"><span>Confirm password</span><input name="password2" type="password" autocomplete="new-password" required></label>
+          <p class="pay__err" role="alert" data-accterr hidden></p>
+          <button class="btn btn--primary pay__btn" type="submit">Create account &amp; open WAREXX</button>
+          <p class="pay__hint">You’ll start with a sample business while our team sets up your own workspace.</p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+<div class="pay__go" data-going hidden><div><span class="pay__spin"></span><span>Taking you to HDFC Bank SmartGateway…</span></div></div>
+
+<dialog class="terms" id="terms" aria-labelledby="terms-title">
+  <div class="terms__in">
+    <div class="terms__head">
+      <h2 id="terms-title">Terms &amp; Conditions</h2>
+      <p>Please read and accept to continue to payment.</p>
+    </div>
+    <div class="terms__body">
+      <div><h3>Subscriptions and payments</h3><p>Subscriptions are billed monthly or annually, according to the selected plan. Fees are exclusive of applicable taxes unless stated otherwise. Payments are due in advance; failure to pay may result in suspension or termination.</p></div>
+      <div><h3>Refunds and cancellation</h3><p>Subscription fees are generally non-refundable once processed, including for partial usage, unused periods or early cancellation, except where required by applicable law or agreed in writing. After cancellation, access may continue until the end of the paid billing period.</p></div>
+      <div><h3>Your account and data</h3><p>Keep your login credentials confidential; you are responsible for activity through your account. Business data you enter remains your property, and you are responsible for its accuracy and lawful use.</p></div>
+      <div><h3>Acceptable use</h3><p>Use WAREXX lawfully. Do not disrupt or compromise the platform, upload malicious content, access other accounts, or copy or reverse-engineer the software except where the law permits.</p></div>
+      <div><h3>Privacy</h3><p>We do not sell or rent personal or business data. We use your details to provide the service, manage your subscription and support, and send service communications.</p></div>
+      <div><h3>Liability and governing law</h3><p>Reports and calculations are operational aids, not professional advice. Liability is limited as permitted by law. These terms are governed by the laws of India.</p></div>
+      <div class="terms__links">
+        <a href="/legal/#terms" target="_blank" rel="noopener">Terms of Service</a>
+        <a href="/legal/#privacy" target="_blank" rel="noopener">Privacy Policy</a>
+        <a href="/legal/#refunds" target="_blank" rel="noopener">Refund &amp; Cancellation</a>
+        <a href="/legal/#disclaimer" target="_blank" rel="noopener">Disclaimer</a>
+      </div>
+    </div>
+    <div class="terms__foot">
+      <label class="terms__check"><input type="checkbox" data-agree>
+        <span>I have read and agree to the Terms of Service, Privacy Policy, Refund &amp; Cancellation Policy and Disclaimer.</span></label>
+      <p class="pay__err" role="alert" data-termserr hidden></p>
+      <div class="terms__btns">
+        <button class="btn btn--ghost" type="button" data-terms-cancel>Cancel</button>
+        <button class="btn btn--primary" type="button" data-terms-accept disabled>Accept &amp; pay</button>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<script>
+/* the payment page: details → terms → checkout → HDFC SmartGateway → result → account */
+document.addEventListener('DOMContentLoaded', () => {
+  'use strict';
+  const LEGAL_VERSION = '2026-10';          // the policies' "Last updated" (/legal); kept with each order
+  const $ = (s, r = document) => r.querySelector(s);
+  const form = $('#payForm'), btn = $('[data-complete]'), dlg = $('#terms');
+  const cfg = window.WAREXX_CONFIG || {};
+  const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const inr = (v) => '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const day = (t) => (t ? new Date(t).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—');
+  const say = (el, msg) => { el.textContent = msg || ''; el.hidden = !msg; };
+  const show = (step) => document.querySelectorAll('[data-step]').forEach((el) => { el.hidden = el.dataset.step !== step; });
+  const store = {
+    get: (k) => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } },
+    set: (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch (e) { /* private mode */ } },
+  };
+  // order tokens, by order: they let this browser ask about its own orders (and nobody else's)
+  const tokens = () => { try { return JSON.parse(sessionStorage.getItem('wx_pay_orders') || store.get('wx_pay_orders') || '{}'); } catch (e) { return {}; } };
+  const keepToken = (ref, token) => {
+    const t = tokens(); t[ref] = token;
+    const keep = JSON.stringify(Object.fromEntries(Object.entries(t).slice(-5)));
+    try { sessionStorage.setItem('wx_pay_orders', keep); } catch (e) { /* private mode */ }
+    store.set('wx_pay_orders', keep);
+  };
+  const MSG = {
+    too_many_attempts: 'Too many attempts — please wait a few minutes and try again.',
+    payments_not_configured: 'Online payment isn’t available right now. Please contact warex.support@aavoraa.com.',
+    gateway_unavailable: 'HDFC Bank’s payment service isn’t responding right now. Nothing was charged — please try again in a few minutes.',
+    gateway_rejected: 'The payment could not be started. Nothing was charged — please try again, or contact warex.support@aavoraa.com.',
+    billing_unavailable: 'Our billing service is temporarily unavailable. Nothing was charged — please try again shortly.',
+    offline: 'Could not reach WAREXX. Check your connection and try again.',
+  };
+  async function call(body) {
+    let r; try { r = await fetch('/api/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); }
+    catch (e) { return { status: 0, detail: 'offline' }; }
+    let j = {}; try { j = await r.json(); } catch (e) { /* empty */ }
+    return r.ok ? { ok: true, ...j } : { status: r.status, ...j };
+  }
+
+  // ---- the plans: what they include from the landing page's own pricing; every amount from the server
+  let server = null;
+  const plans = ((cfg.pricing || {}).plans || []).filter((p) => /^(monthly|annual)/i.test(p.name || ''));
+  const find = (slug) => plans.find((p) => (p.name || '').toLowerCase().startsWith(slug)) || {};
+  let plan = /annual/i.test(new URLSearchParams(location.search).get('plan') || '') ? 'annual' : 'monthly';
+  function showPlan() {
+    const p = find(plan), q = server && server.plans ? server.plans[plan] : null;
+    document.querySelectorAll('[data-plan]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.plan === plan)));
+    $('[data-price]').textContent = q ? inr(q.base) : (p.price || '');
+    $('[data-period]').textContent = q ? (plan === 'annual' ? '/ year' : '/ month') : (p.period || '');
+    $('[data-pnote]').hidden = !p.note; $('[data-pnote]').textContent = p.note || '';
+    $('[data-includes]').innerHTML = (p.includes || []).map((i) => `<li>${esc(i)}</li>`).join('');
+    $('[data-base]').textContent = q ? inr(q.base) : '—';
+    $('[data-taxlabel]').textContent = q ? `GST (${Number(q.tax_percent)}%)` : 'GST';
+    $('[data-tax]').textContent = q ? inr(q.tax) : '—';
+    $('[data-total]').textContent = q ? inr(q.total) : '—';
+    const test = q && server.environment === 'sandbox';
+    $('[data-charge]').hidden = !test;
+    $('[data-charge]').textContent = test ? `Test mode: HDFC’s sandbox will charge ${inr(q.charged)} instead.` : '';
+    const u = new URL(location.href); u.searchParams.set('plan', plan); history.replaceState(history.state, '', u);
+  }
+  document.querySelectorAll('[data-plan]').forEach((b) => b.addEventListener('click', () => { plan = b.dataset.plan; showPlan(); check(false); }));
+
+  // ---- countries
+  const COUNTRIES = ['India', 'United Arab Emirates', 'Saudi Arabia', 'Qatar', 'Kuwait', 'Bahrain', 'Oman', 'Singapore', 'Malaysia',
+    'Sri Lanka', 'Nepal', 'Bangladesh', 'United States', 'United Kingdom', 'Canada', 'Australia', 'New Zealand', 'Germany',
+    'France', 'Netherlands', 'South Africa', 'Kenya', 'Nigeria', 'Other'];
+  form.elements.country.innerHTML = '<option value="">Select</option>' + COUNTRIES.map((c) => `<option>${esc(c)}</option>`).join('');
+  form.elements.country.value = 'India';
+
+  // ---- validation (the server checks everything again)
+  const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const GSTIN = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+  function problems() {
+    const v = (n) => String(form.elements[n].value || '').trim(), e = {};
+    for (const n of ['name', 'company', 'address', 'city', 'state', 'country']) if (!v(n)) e[n] = 'Required';
+    if (!EMAIL.test(v('email'))) e.email = 'Enter a valid email';
+    if (v('phone').replace(/\D/g, '').length < 10) e.phone = 'Enter a 10-digit mobile number';
+    const pin = v('postcode');
+    if (!pin) e.postcode = 'Required';
+    else if (v('country') === 'India' && !/^\d{6}$/.test(pin)) e.postcode = 'A 6-digit PIN code';
+    if (v('gstin') && !GSTIN.test(v('gstin').toUpperCase())) e.gstin = 'Not a valid GSTIN (15 characters)';
+    return e;
+  }
+  const touched = new Set();
+  function check(showAll) {
+    const e = problems();
+    document.querySelectorAll('[data-err]').forEach((el) => {
+      const n = el.dataset.err, on = (showAll || touched.has(n)) && e[n];
+      el.textContent = on ? e[n] : '';
+      const input = form.elements[n];
+      if (input && input.setAttribute) input.setAttribute('aria-invalid', on ? 'true' : 'false');
+    });
+    const ready = server && server.enabled;
+    const ok = !Object.keys(e).length && ready;
+    btn.disabled = !ok;
+    $('[data-hint]').textContent = !ready ? '' : ok ? 'You’ll pay on HDFC Bank SmartGateway.' : 'Fill in all required details to continue.';
+    return ok;
+  }
+  ['input', 'change', 'focusout'].forEach((t) => form.addEventListener(t, (ev) => { if (ev.target.name) touched.add(ev.target.name); check(false); }));
+
+  // ---- "Proceed to payment" → the terms → checkout → HDFC
+  const agree = $('[data-agree]'), accept = $('[data-terms-accept]');
+  form.addEventListener('submit', (ev) => {
+    ev.preventDefault();
+    if (!check(true)) { const bad = form.querySelector('[aria-invalid="true"]'); if (bad) bad.focus(); return; }
+    agree.checked = false; accept.disabled = true; say($('[data-termserr]'), '');
+    if (typeof dlg.showModal === 'function') dlg.showModal(); else dlg.setAttribute('open', '');
+  });
+  agree.addEventListener('change', () => { accept.disabled = !agree.checked; });
+  $('[data-terms-cancel]').addEventListener('click', () => dlg.close());
+
+  const details = () => {
+    const f = Object.fromEntries(['name', 'email', 'phone', 'company', 'gstin', 'address', 'city', 'state', 'postcode', 'country']
+      .map((n) => [n, String(form.elements[n].value || '').trim()]));
+    f.gstin = f.gstin.toUpperCase();
+    return f;
+  };
+  function toGateway(r) {
+    keepToken(r.order_ref, r.token);
+    $('[data-going]').hidden = false;
+    location.assign(r.payment_url);          // HDFC Bank SmartGateway's own page
+  }
+  async function checkout(errEl) {
+    const r = await call({ action: 'checkout', ...details(), plan, terms_accepted: true, terms_version: LEGAL_VERSION,
+      session: store.get('wx_trial_session') || undefined });
+    if (r.ok) return toGateway(r);
+    if (r.detail === 'sign_in_required') {
+      dlg.close(); show('signin');
+      $('#signinForm').elements.email.value = details().email; setTimeout(() => $('#signinForm').elements.password.focus(), 50);
+      return;
+    }
+    if (r.fields) { dlg.close(); Object.keys(r.fields).forEach((n) => touched.add(n)); check(true); }
+    if (r.detail === 'too_many_attempts' && r.retry_minutes) {
+      return say(errEl, `Too many attempts just now — please try again in ${r.retry_minutes} minute${r.retry_minutes === 1 ? '' : 's'}.`);
+    }
+    say(errEl, r.fields ? 'Please check the highlighted details.' : (MSG[r.detail] || 'Something went wrong. Nothing was charged — please try again.'));
+  }
+  accept.addEventListener('click', async () => {
+    if (!agree.checked) return;
+    accept.disabled = true; accept.textContent = 'Please wait…';
+    await checkout($('[data-termserr]'));
+    accept.textContent = 'Accept & pay'; accept.disabled = !agree.checked;
+    if (!dlg.open) say($('[data-payerr]'), $('[data-termserr]').textContent);
+  });
+
+  // ---- an existing account: sign in, then the same checkout
+  $('#signinForm').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    const f = ev.target, err = $('[data-signerr]'), b = f.querySelector('button[type=submit]');
+    b.disabled = true; say(err, '');
+    let r = {};
+    try {
+      const res = await fetch('/api/trial', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'signin', email: f.elements.email.value, password: f.elements.password.value }) });
+      r = { ok: res.ok, status: res.status, ...(await res.json().catch(() => ({}))) };
+    } catch (e) { r = { detail: 'offline' }; }
+    if (!r.ok || !r.session) {
+      b.disabled = false;
+      return say(err, r.detail === 'wrong_password' ? 'That email and password don’t match.'
+        : r.detail === 'expired' ? 'Your subscription has ended — sign in isn’t possible, but you can still pay: contact warex.support@aavoraa.com.'
+        : (MSG[r.detail] || 'Could not sign in. Please try again.'));
+    }
+    store.set('wx_trial_session', r.session);
+    await checkout(err);
+    b.disabled = false;
+  });
+  $('[data-signin-back]').addEventListener('click', () => show('details'));
+
+  // ---- the result, after HDFC (/pay/?order=…)
+  const ref = new URLSearchParams(location.search).get('order');
+  const R = { title: $('[data-r-title]'), state: $('[data-r-state]'), icon: $('[data-r-icon]'), head: $('[data-r-head]'), text: $('[data-r-text]'),
+    facts: $('[data-r-facts]'), acts: $('[data-r-acts]'), err: $('[data-r-err]') };
+  function state(tone, title, head, text) {
+    R.state.dataset.tone = tone; R.title.textContent = title; R.head.textContent = head; R.text.textContent = text;
+    R.icon.innerHTML = tone === 'wait' ? '<span class="pay__spin"></span>' : tone === 'ok' ? '✓' : tone === 'bad' ? '!' : 'i';
+  }
+  function facts(o) {
+    const rows = [['Order', o.order_ref], ['Plan', `${o.plan_name} (${o.plan === 'annual' ? 'billed yearly' : 'billed monthly'})`],
+      ['Price + GST', `${inr(o.list_base)} + ${inr(o.list_tax)} = ${inr(o.list_total)}`],
+      ['Charged', inr(o.amount) + (o.environment === 'sandbox' ? ' (sandbox test amount)' : '')]];
+    if (o.invoice_no) rows.push(['Receipt', o.invoice_no]);
+    if (o.payment_method) rows.push(['Paid with', o.payment_method]);
+    if (o.period_end) rows.push(['Subscription until', day(o.period_end)]);
+    R.facts.innerHTML = rows.map(([k, v]) => `<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+    R.facts.hidden = false;
+  }
+  function actions(list) {
+    R.acts.innerHTML = '';
+    list.forEach(([label, fn, primary]) => {
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ' + (primary ? 'btn--primary' : 'btn--ghost');
+      b.textContent = label; b.addEventListener('click', fn); R.acts.appendChild(b);
+    });
+  }
+  async function retry(token) {
+    say(R.err, '');
+    const r = await call({ action: 'retry', order: token });
+    if (r.ok) return toGateway(r);
+    say(R.err, MSG[r.detail] || 'Could not start the payment again. Please try again shortly.');
+  }
+  const changePlan = () => { location.href = '/pay/?plan=' + plan; };
+  // HDFC's recommended order-status polling: every 15 s for 90 s, then at 2, 5, 10, 20 and 60 minutes
+  const SCHEDULE = [0, 4, 15, 30, 45, 60, 75, 90, 120, 300, 600, 1200, 3600];
+  let started = Date.now();
+  async function poll(token, i = 0) {
+    const r = await call({ action: 'status', order: token });
+    if (!r.ok) {
+      if (r.status === 401 || r.status === 404) {
+        state('info', 'Payment', 'We can’t show this payment here', 'Check your email for a receipt, or contact warex.support@aavoraa.com with your order number.');
+        return actions([['Back to plans', changePlan, true]]);
+      }
+      state('wait', 'Confirming your payment', 'Still checking…', MSG[r.detail] || 'We’ll keep trying.');
+    } else if (render(r, token)) return;
+    if (i + 1 < SCHEDULE.length) {
+      const wait = Math.max(3000, started + SCHEDULE[i + 1] * 1000 - Date.now());
+      setTimeout(() => poll(token, i + 1), wait);
+    }
+  }
+  function render(o, token) {
+    facts(o);
+    if (o.status === 'paid' || o.status === 'partially_refunded') {
+      state('ok', 'Payment successful', 'Thank you — your payment is confirmed',
+        o.environment === 'sandbox' ? 'This was an HDFC sandbox (test) payment. A receipt is on its way to your email.' : 'A receipt is on its way to your email.');
+      if (o.account === 'needed') { showAccount(o, token); actions([]); }
+      else actions([['Open WAREXX', () => { location.href = String(cfg.demoAppUrl || '/demo/'); }, true]]);
+      return true;
+    }
+    if (o.status === 'failed') {
+      state('bad', 'Payment failed', 'Your payment didn’t go through', (o.failure_reason ? o.failure_reason + '. ' : '') + 'No money was taken. If any amount was deducted, it will be returned by your bank.');
+      actions([['Try again', () => retry(token), true], ['Change plan', changePlan]]); return true;
+    }
+    if (o.status === 'cancelled') {
+      state('info', 'Payment not completed', 'You left the payment page before paying', 'Nothing was charged. You can try again whenever you’re ready.');
+      actions([['Try again', () => retry(token), true], ['Change plan', changePlan]]); return true;
+    }
+    if (o.status === 'expired') {
+      state('info', 'Payment link expired', 'This payment link has expired', 'Nothing was charged. Start a new payment to continue.');
+      actions([['Pay now', () => retry(token), true]]); return true;
+    }
+    if (o.status === 'refunded') {
+      state('info', 'Payment refunded', 'This payment has been refunded', 'The refunded amount returns to your account as per your bank’s timelines.');
+      actions([['Back to plans', changePlan, true]]); return true;
+    }
+    const long = Date.now() - started > 120000;
+    state('wait', 'Confirming your payment', o.status === 'unknown' ? 'We’re checking this payment' : 'Your payment is being processed',
+      long ? 'Your bank is still confirming this payment. You can close this page — we’ll email you as soon as it’s confirmed. Please don’t pay again.'
+        : 'This usually takes a few seconds. Please keep this page open and don’t pay again.');
+    actions([]);
+    return false;
+  }
+  const acct = $('#acctForm');
+  function showAccount(o, token) {
+    acct.hidden = false; acct.elements.email.value = o.email;
+    acct.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const err = $('[data-accterr]'), pw = acct.elements.password.value, pw2 = acct.elements.password2.value;
+      if (pw.length < 8) return say(err, 'Use at least 8 characters.');
+      if (pw !== pw2) return say(err, 'The two passwords do not match.');
+      say(err, '');
+      const b = acct.querySelector('button[type=submit]'); b.disabled = true; b.textContent = 'Creating your account…';
+      const r = await call({ action: 'account', order: token, password: pw });
+      if (!r.ok) {
+        b.disabled = false; b.textContent = 'Create account & open WAREXX';
+        return say(err, { weak_password: 'Use at least 8 characters.', account_exists: 'An account already exists for this email — sign in with it.',
+          not_paid: 'This payment isn’t confirmed yet.' }[r.detail] || MSG[r.detail] || 'Something went wrong. Please try again.');
+      }
+      store.set('wx_trial_session', r.session); store.set('wx_trial_ticket', ''); store.set('wx_trial_account', '');
+      location.href = String(cfg.demoAppUrl || '/demo/');
+    };
+  }
+
+  // ---- a signed-in customer: their subscription and payments
+  async function mine() {
+    const s = store.get('wx_trial_session');
+    if (!s) return;
+    const r = await call({ action: 'billing', session: s });
+    if (!r.ok) return;
+    const sub = r.subscription || {};
+    const label = { active: 'Active', grace: 'Grace period', expired: 'Expired', cancelled: 'Cancelled', payment_pending: 'Payment pending',
+      payment_failed: 'Payment failed', suspended: 'Suspended', restricted: 'Restricted', trial: 'Trial' }[sub.status] || sub.status;
+    $('[data-mine-line]').innerHTML = `${esc(r.company)} · ${esc(sub.plan_name)} plan · <b>${esc(label)}</b>`
+      + (sub.period_end ? ` · ${sub.status === 'active' ? 'active until' : 'paid until'} ${esc(day(sub.period_end))}` : '');
+    const tone = (st) => (st === 'paid' ? 'ok' : st === 'failed' ? 'bad' : '');
+    $('[data-mine-rows]').innerHTML = (r.orders || []).map((o) => `<tr><td>${esc(day(o.created_at))}</td><td>${esc(o.plan_name)}</td>
+      <td>${esc(inr(o.amount))}${o.environment === 'sandbox' ? ' <small>(test)</small>' : ''}</td>
+      <td><span class="pay__pill" data-tone="${tone(o.status)}">${esc(o.status.replace('_', ' '))}</span></td><td>${esc(o.invoice_no || '—')}</td></tr>`).join('')
+      || '<tr><td colspan="5">No payments yet.</td></tr>';
+    $('[data-mine]').hidden = false;
+    form.elements.email.value = r.email; form.elements.company.value = r.company || ''; touched.add('email');
+  }
+
+  // ---- start
+  (async () => {
+    showPlan(); check(false);
+    if (ref) {
+      show('result');
+      const token = tokens()[ref];
+      if (!token) {
+        state('info', 'Payment', 'We can’t show this payment in this browser',
+          'If you paid, a receipt is on its way to your email. For help, contact warex.support@aavoraa.com with order ' + ref + '.');
+        return actions([['Back to plans', changePlan, true]]);
+      }
+      return poll(token);
+    }
+    const c = await call({ action: 'config' });
+    server = c.ok ? c : { enabled: false };
+    const note = $('[data-envnote]');
+    if (!server.enabled) {
+      note.innerHTML = '<span aria-hidden="true">ⓘ</span><span><b>Online payment isn’t available right now.</b> Please contact warex.support@aavoraa.com to subscribe.</span>';
+      note.hidden = false;
+    } else if (server.environment === 'sandbox') {
+      note.innerHTML = '<span aria-hidden="true">ⓘ</span><span><b>Test mode — HDFC SmartGateway sandbox.</b> No real money moves: use HDFC’s test card or UPI details on the payment page.</span>';
+      note.hidden = false;
+    }
+    showPlan(); check(false); mine();
+  })();
+});
+</script>

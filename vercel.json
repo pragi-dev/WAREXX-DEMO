@@ -16,6 +16,18 @@
     "api/admin.py": {
       "maxDuration": 30,
       "includeFiles": "lead-api/**"
+    },
+    "api/subscribe.py": {
+      "maxDuration": 60,
+      "includeFiles": "lead-api/**"
+    },
+    "api/payment_return.py": {
+      "maxDuration": 60,
+      "includeFiles": "lead-api/**"
+    },
+    "api/payment_webhook.py": {
+      "maxDuration": 60,
+      "includeFiles": "lead-api/**"
     }
   },
   "redirects": [
@@ -37,6 +49,18 @@
     {
       "source": "/legal",
       "destination": "/legal/index.html"
+    },
+    {
+      "source": "/api/payment/return",
+      "destination": "/api/payment_return"
+    },
+    {
+      "source": "/api/payment/webhook",
+      "destination": "/api/payment_webhook"
+    },
+    {
+      "source": "/pay",
+      "destination": "/pay/index.html"
     },
     {
       "source": "/demo",
@@ -97,6 +121,24 @@
         {
           "key": "Cache-Control",
           "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/pay(/|/index.html)?",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    },
+    {
+      "source": "/pay(/.*)?",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex"
         }
       ]
     },

@@ -83,6 +83,7 @@
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-leads" aria-selected="true" data-view="leads">Leads</button>
     <button class="tab" role="tab" id="tab-trials" aria-selected="false" data-view="trials">Trial users</button>
+    <button class="tab" role="tab" id="tab-payments" aria-selected="false" data-view="payments">Payments</button>
   </div>
 
   <section class="card">
@@ -111,6 +112,8 @@
     leads: [['', 'All forms'], ['demo', 'Free trial / demo'], ['contact', 'Contact'], ['plan', 'Plan enquiry'], ['brochure', 'Brochure'],
             ['sandbox', 'Live sandbox'], ['prebook', 'Pre-book'], ['partner', 'Launch partner']],
     trials: [['', 'All trials'], ['signed_up', 'Signed up'], ['not_signed_up', 'Not signed up yet'], ['email_failed', 'Email not sent']],
+    payments: [['', 'All orders'], ['paid', 'Paid'], ['pending', 'Pending'], ['failed', 'Failed'], ['cancelled', 'Cancelled'],
+               ['unknown', 'Needs review'], ['partially_refunded', 'Partly refunded'], ['refunded', 'Refunded']],
   };
 
   async function call(body) {
@@ -132,7 +135,39 @@
   const COLS = {
     leads: ['Received', 'Form', 'Name / company', 'Contact', 'Interested in', 'Demo slot', 'Message', 'Email'],
     trials: ['Booked', 'Name / company', 'Email / phone', 'Trial window', 'Access email', 'Signed up', 'Last sign-in', 'Tour'],
+    payments: ['Ordered', 'Order / receipt', 'Customer', 'Plan', 'Amount', 'Status', 'Subscription', 'Actions'],
   };
+  const inr = (v) => '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const TONE = { paid: 'ok', partially_refunded: 'ok', failed: 'bad', unknown: 'bad', refunded: '' };
+  function actionsFor(r) {
+    const box = el('div');
+    const check = el('button', 'btn', 'Check with HDFC'); check.type = 'button';
+    check.addEventListener('click', async () => {
+      check.disabled = true;
+      try { const j = await call({ action: 'payment_check', order_ref: r.order_ref }); alert(`Order ${r.order_ref}: ${j.status}` + (j.check_failed ? ' (HDFC could not be reached — try again)' : '')); load(); }
+      catch (e) { alert('Could not check: ' + (e.detail || e.message)); }
+      check.disabled = false;
+    });
+    box.append(check);
+    if (r.status === 'paid' || r.status === 'partially_refunded') {
+      const refund = el('button', 'btn', 'Refund'); refund.type = 'button'; refund.style.marginLeft = '6px';
+      refund.addEventListener('click', async () => {
+        const amount = prompt(`Refund how much (₹) of ${inr(r.amount)} for order ${r.order_ref}?
+Refunds go back through HDFC SmartGateway and cannot be undone.`, '');
+        if (!amount) return;
+        const reason = prompt('Reason (kept in the audit trail):', '') || '';
+        if (!confirm(`Refund ${inr(amount)} on order ${r.order_ref}?`)) return;
+        refund.disabled = true;
+        try { const j = await call({ action: 'payment_refund', order_ref: r.order_ref, amount, reason }); alert(`Refund ${j.refund.unique_request_id}: ${j.refund.status}`); load(); }
+        catch (e) { alert({ exceeds_refundable: 'That is more than is left to refund on this order.', not_refundable: 'Only paid orders can be refunded.',
+          refund_rejected: 'HDFC refused this refund.', refund_unconfirmed: 'HDFC did not confirm this refund — use "Check with HDFC" before trying again.',
+          invalid_amount: 'Enter an amount like 1000 or 1000.50.' }[e.detail] || 'Could not refund: ' + (e.detail || e.message)); }
+        refund.disabled = false;
+      });
+      box.append(refund);
+    }
+    return box;
+  }
   const ROW = {
     leads: (r) => [cell(when(r.created_at)), cell(pill(r.type || '—')), cell(two(r.name, r.company)), cell(two(r.email, r.phone)),
       cell(r.interest || r.industry || '—'), cell(r.slot ? (r.slot === 'now' ? 'Start now' : when(r.slot)) : '—'),
@@ -143,12 +178,22 @@
       cell(r.signed_up_at ? when(r.signed_up_at) : pill('Not yet')),
       cell(r.last_login_at ? two(when(r.last_login_at), r.logins + ' sign-in' + (r.logins == 1 ? '' : 's')) : '—'),
       cell(r.tour_state === 'completed' ? pill('Completed', 'ok') : r.tour_state === 'skipped' ? pill('Skipped') : '—')],
+    payments: (r) => [cell(when(r.created_at)), cell(two(r.order_ref, r.invoice_no || (r.environment === 'sandbox' ? 'sandbox (test)' : ''))),
+      cell(two(r.company, r.name + ' · ' + r.email + (r.gstin ? ' · GSTIN ' + r.gstin : ''))),
+      cell(two((r.plan_code === 'annual' ? 'Annual' : 'Monthly') + (r.kind === 'renewal' ? ' (renewal)' : ''), 'workspace ' + r.tenant_slug)),
+      cell(two(inr(r.amount) + (r.environment === 'sandbox' ? ' (test)' : ''), 'list ' + inr(r.list_total)
+        + (Number(r.amount_refunded) ? ' · refunded ' + inr(r.amount_refunded) : ''))),
+      cell(pill(r.status.replace('_', ' '), TONE[r.status] || ''), el('div', 'sub', [r.gateway_status, r.payment_method].filter(Boolean).join(' · ')
+        + (r.failure_reason ? ' · ' + r.failure_reason : '') + ((r.refunds || []).length ? ' · refunds: ' + r.refunds.map((x) => inr(x.amount) + ' ' + x.status).join(', ') : ''))),
+      cell(two(r.subscription_status.replace('_', ' '), r.period_end ? 'until ' + when(r.period_end) : '')),
+      cell(actionsFor(r))],
   };
 
   async function load() {
     $('thead').innerHTML = ''; const tr = el('tr'); COLS[view].forEach((c) => tr.append(el('th', '', c))); $('thead').append(tr);
     const body = { action: view, q: $('q').value.trim(), page };
     body[view === 'leads' ? 'type' : 'status'] = $('filter').value;
+    $('exportBtn').hidden = view === 'payments';
     try {
       const j = await call(body);
       if (!Array.isArray(j.rows)) throw new Error('Unexpected reply from the server — reload the page.');
@@ -166,6 +211,7 @@
       const s = await call({ action: 'summary' });
       const box = $('stats'); box.innerHTML = '';
       [['Contacts', s.contacts], ['Leads', s.leads], ['Free trials', s.trials], ['Signed up', s.signed_up], ['Finished the tour', s.tour_completed], ['Email not sent', s.email_failed]]
+        .concat(s.payments ? [['Paid orders', s.payments.paid], ['Active subscriptions', s.payments.active_subscriptions]] : [])
         .forEach(([k, v]) => { const c = el('div', 'card stat'); c.append(el('small', '', k), el('b', '', String(v))); box.append(c); });
       $('dbnote').textContent = s.database === 'sqlite' ? 'Storage: a local SQLite file (no POSTGRES_URL set on this server).' : 'Storage: PostgreSQL.';
     } catch (e) { /* the table shows the problem */ }

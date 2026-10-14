@@ -4,19 +4,26 @@ Vercel functions (../api/leads.py, ../api/trial.py). Two endpoints:
     POST /api/leads   a landing page form. With a demo slot it also answers a
                       sign-up pass for the demo (trial.py).
     POST /api/trial   the demo's sign-up / sign-in / session check (trial.py).
+    POST /api/subscribe          the /pay page: plans, checkout, order status, retry,
+                                 account, billing history (payments.py)
+    GET|POST /api/payment/return HDFC SmartGateway sends the customer back here
+    POST /api/payment/webhook    HDFC SmartGateway's webhooks (server to server)
 
 Nothing here can reach WAREXX: no database driver is imported, no WAREXX URL or
-credential is read. GET, PUT, PATCH and DELETE are refused.
+credential is read. GET (except the payment return), PUT, PATCH and DELETE are refused.
 """
+import html
 import json
 import os
 import threading
 import time
 from collections import defaultdict, deque
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qsl
 
 import admin
 import lead_mail
+import payments
 import store
 import trial
 
@@ -81,7 +88,8 @@ class LeadHandler(BaseHTTPRequestHandler):
         p = self.path.split("?")[0].rstrip("/")
         if self.only:                      # a Vercel function: its file decides the path
             return self.only
-        return {"/api/leads": "leads", "/api/trial": "trial", "/api/admin": "admin"}.get(p)
+        return {"/api/leads": "leads", "/api/trial": "trial", "/api/admin": "admin", "/api/subscribe": "subscribe",
+                "/api/payment/return": "payment_return", "/api/payment/webhook": "payment_webhook"}.get(p)
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -121,6 +129,13 @@ class LeadHandler(BaseHTTPRequestHandler):
             return self._trial(raw)
         if route == "admin":
             return self._admin(raw)
+        if route == "subscribe":
+            return self._subscribe(raw)
+        if route == "payment_return":
+            return self._payment_return(raw)
+        if route == "payment_webhook":
+            status, body = payments.webhook(self.headers.get("Authorization"), raw)
+            return self._answer(status, body)
         try:
             lead = lead_mail.accept(raw, self._ip())
         except lead_mail.LeadError as e:
@@ -230,7 +245,9 @@ class LeadHandler(BaseHTTPRequestHandler):
             return self._answer(e.status, {"detail": e.detail, **e.extra})
         # what happened to the trial, kept against it (store.py)
         action, ref = (data or {}).get("action"), result.get("ref")
-        if ref and action == "signin":                      # the emailed password: the first one signs up
+        if ref and ref.startswith("cust:"):                  # a subscriber (payments.py), not a trial
+            pass
+        elif ref and action == "signin":                      # the emailed password: the first one signs up
             store.trial_signed_up(ref)
             store.trial_logged_in(ref)
         elif ref and action == "signup":
@@ -241,6 +258,12 @@ class LeadHandler(BaseHTTPRequestHandler):
             store.trial_tour(ref, result["state"])
         elif ref and action == "verify":
             result["tour_state"] = store.tour_state(ref)      # the tour, remembered for this user
+        if result.get("subscriber") and action == "verify" and not payments.subscriber_access(result.get("email")):
+            # a paying customer's session opens WAREXX only while the subscription is
+            # active (or in grace) — checked here, on the server, every time
+            return self._answer(403, {"detail": "expired"})
+        if ref and ref.startswith("cust:") and action in ("signin", "login"):
+            payments.subscriber_logged_in(ref)
         result.pop("ref", None)                               # internal; the browser does not need it
         return self._answer(200, result)
 
@@ -254,6 +277,10 @@ class LeadHandler(BaseHTTPRequestHandler):
         except Exception as exc:                              # noqa: BLE001
             print(f"[lead api] sign-in: database unavailable: {type(exc).__name__}", flush=True)
             raise trial.TrialError(503, "database_unavailable")
+        try:   # a paying customer's account (payments.py)
+            rows = rows + payments.subscriber_logins(data.get("email"))
+        except Exception as exc:                              # noqa: BLE001 — trials still sign in
+            print(f"[lead api] sign-in: billing database unavailable: {type(exc).__name__}", flush=True)
         try:
             result = trial.signin(rows, data.get("email"), data.get("password"))
         except trial.TrialError as e:                         # kept: who tried, and why it failed
@@ -261,6 +288,81 @@ class LeadHandler(BaseHTTPRequestHandler):
             raise
         store.log_signin(data.get("email"), result.get("ref"), True)
         return result
+
+    def _subscribe(self, raw):
+        """The /pay page. JSON only (a cross-site form cannot send it)."""
+        if "application/json" not in (self.headers.get("Content-Type") or ""):
+            return self._answer(415, {"detail": "bad_request"})
+        try:
+            data = json.loads(raw.decode("utf-8") or "{}")
+        except (ValueError, UnicodeDecodeError):
+            data = None
+        if not isinstance(data, dict):
+            return self._answer(400, {"detail": "bad_request"})
+        action = data.get("action")
+        try:
+            if action == "config":
+                return self._answer(200, payments.public_config())
+            if action == "checkout":
+                return self._answer(200, payments.checkout(data, self._ip(), data.get("session")))
+            if action == "status":
+                return self._answer(200, payments.status(data.get("order"), self._ip()))
+            if action == "retry":
+                return self._answer(200, payments.retry(data.get("order"), self._ip()))
+            if action == "account":
+                if not _trial_allowed(self._ip()):
+                    return self._answer(429, {"detail": "too_many_attempts"})
+                result = payments.account(data.get("order"), data.get("password"))
+                result.pop("ref", None)
+                return self._answer(200, result)
+            if action == "billing":
+                return self._answer(200, payments.billing_history(data.get("session")))
+            return self._answer(400, {"detail": "bad_request"})
+        except payments.PaymentError as e:
+            return self._answer(e.status, {"detail": e.detail, **e.extra})
+        except trial.TrialError as e:
+            return self._answer(e.status, {"detail": e.detail, **e.extra})
+        except Exception as exc:                              # noqa: BLE001 — the database, most likely
+            print(f"[payments] {action} failed: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
+            return self._answer(503, {"detail": "billing_unavailable"})
+
+    def _payment_return(self, raw):
+        """The customer back from HDFC's payment page. The order is checked with
+        HDFC (payments.handle_return), then this page — a 200, not a redirect —
+        opens the /pay result for it in the same tab."""
+        query = self.path.split("?", 1)[1] if "?" in self.path else ""
+        params = dict(parse_qsl(query, keep_blank_values=True))
+        if raw:
+            try:
+                params.update(parse_qsl(raw.decode("utf-8"), keep_blank_values=True))
+            except UnicodeDecodeError:
+                pass
+        try:
+            ref = payments.handle_return(params)
+        except Exception as exc:                              # noqa: BLE001 — the result page asks again
+            print(f"[payments] return handling failed: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
+            ref = str(params.get("order_id") or "")
+            ref = ref if payments._REF.match(ref) else None
+        target = "/pay/?order=" + ref if ref else "/pay/"
+        page = ("<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"robots\" content=\"noindex\">"
+                "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Confirming your payment — WAREXX</title>"
+                "<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0E0F12;color:#F4F1EA;"
+                "font:16px/1.5 system-ui,sans-serif}a{color:#EE7A1E}</style></head><body><main><p>Confirming your payment…</p>"
+                f"<p><a href=\"{html.escape(target)}\">Continue</a></p></main>"
+                f"<script>location.replace({json.dumps(target)})</script></body></html>").encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(page)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Referrer-Policy", "no-referrer")
+        self.end_headers()
+        self.wfile.write(page)
+
+    def do_GET(self):
+        if self._route() == "payment_return":
+            return self._payment_return(b"")
+        return self._refuse()
 
     def _admin(self, raw):
         try:
@@ -275,7 +377,7 @@ class LeadHandler(BaseHTTPRequestHandler):
     def _refuse(self):
         self._answer(405, {"detail": "Only POST"})
 
-    do_GET = do_PUT = do_PATCH = do_DELETE = _refuse
+    do_PUT = do_PATCH = do_DELETE = _refuse
 
     def log_message(self, fmt, *args):
         print("[lead api] " + (fmt % args), flush=True)

@@ -1,6 +1,6 @@
-// /legal: the landing page with <main> holding a page of its own
-// (landing/extras/legal-page.html) — the same head, header, footer and
-// scripts, so the header and footer work there as on every other page.
+// /pay and /legal: the landing page with <main> holding a page of its own
+// (landing/extras/pay-page.html, legal-page.html) — the same head, header,
+// footer and scripts, so the header and footer work there as on every other page.
 // Used by tools/landing.mjs (build and dev server).
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
@@ -9,6 +9,8 @@ import { fileURLToPath } from 'node:url'
 const EXTRAS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'landing', 'extras')
 
 export const SUBPAGES = {
+  // what "Subscribe" (Monthly / Annual) opens: details → terms → HDFC SmartGateway → result
+  pay: { tpl: 'pay-page.html', title: 'Subscribe — WAREXX', keep: ['top', 'main', 'pay'] },
   // the policies: Privacy, Terms, Refunds, Disclaimer — linked in the footer
   legal: { tpl: 'legal-page.html', title: 'Legal policies — WAREXX', keep: ['top', 'main', 'legal', 'privacy', 'terms', 'refunds', 'disclaimer'] },
 }

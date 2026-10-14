@@ -89,11 +89,11 @@ export function pricingPage(landingHtml) {
 }
 
 const DEFAULTS = {
-  dev: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: 'http://localhost:8002/', VITE_APP_URL: 'http://localhost:8000/', VITE_PAYMENT_URL: '' },
+  dev: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: 'http://localhost:8002/', VITE_APP_URL: 'http://localhost:8000/', VITE_PAYMENT_URL: '/pay/' },
   // "/demo/": the demo on this same site (npm run build:site). Set VITE_DEMO_URL
   // to https://demo.warexx.aavoraa.com/ once the demo has a domain of its own.
-  // VITE_PAYMENT_URL: where "Subscribe" goes; empty until the payment page exists
-  build: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: '/demo/', VITE_APP_URL: 'https://app.warexx.aavoraa.com/', VITE_PAYMENT_URL: '' },
+  // VITE_PAYMENT_URL: where "Subscribe" goes — this site's own /pay (HDFC SmartGateway)
+  build: { VITE_LEAD_ENDPOINT: '/api/leads', VITE_DEMO_URL: '/demo/', VITE_APP_URL: 'https://app.warexx.aavoraa.com/', VITE_PAYMENT_URL: '/pay/' },
 }
 const KEYS = { VITE_LEAD_ENDPOINT: 'formEndpoint', VITE_DEMO_URL: 'demoAppUrl', VITE_APP_URL: 'appUrl', VITE_PAYMENT_URL: 'paymentUrl' }
 
@@ -168,7 +168,7 @@ export function build(out = OUT) {
   // /pricing — what Monthly and Annual open
   mkdirSync(path.join(out, 'pricing'), { recursive: true })
   writeFileSync(path.join(out, 'pricing', 'index.html'), pricingPage(html))
-  // /legal — the policies the footer links to
+  // /pay — what Subscribe opens; /legal — the policies the footer links to
   for (const name of Object.keys(SUBPAGES)) {
     mkdirSync(path.join(out, name), { recursive: true })
     writeFileSync(path.join(out, name, 'index.html'), subPage(html, name))
@@ -201,8 +201,8 @@ function dev() {
   const leadApi = new URL(process.env.LEAD_API_URL || 'http://127.0.0.1:8003')
   createServer((req, res) => {
     const url = new URL(req.url, 'http://x')
-    if (url.pathname === '/api/leads' || url.pathname === '/api/trial') {
-      const fwd = httpRequest({ hostname: leadApi.hostname, port: leadApi.port, path: url.pathname,
+    if (['/api/leads', '/api/trial', '/api/subscribe', '/api/payment/return', '/api/payment/webhook'].includes(url.pathname)) {
+      const fwd = httpRequest({ hostname: leadApi.hostname, port: leadApi.port, path: url.pathname + url.search,
         method: req.method, headers: { ...req.headers, host: leadApi.host, 'x-forwarded-host': req.headers.host } }, (r) => {
         res.writeHead(r.statusCode, r.headers); r.pipe(res)
       })
@@ -218,7 +218,7 @@ function dev() {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
       return res.end(pricingPage(landingPage('dev')))
     }
-    const sub = /^\/(legal)\/?$/.exec(url.pathname)
+    const sub = /^\/(pay|legal)\/?$/.exec(url.pathname)
     if (sub) {
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' })
       return res.end(subPage(landingPage('dev'), sub[1]))

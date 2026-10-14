@@ -22,6 +22,7 @@ import threading
 import time
 from collections import defaultdict, deque
 
+import payments
 import store
 
 TOKEN_HOURS = 12
@@ -119,7 +120,24 @@ def handle(raw, ip="", token=""):
     page = max(0, int(data.get("page") or 0))
     q = str(data.get("q") or "").strip()[:100]
     if action == "summary":
-        return store.summary()
+        out = store.summary()
+        try:
+            out["payments"] = payments.summary()
+        except Exception as exc:  # noqa: BLE001 — the leads still show
+            print(f"[admin] billing summary unavailable: {type(exc).__name__}", flush=True)
+        return out
+    if action == "payments":
+        return {**payments.admin_orders(q, str(data.get("status") or ""), PAGE, page * PAGE), "page": page, "per_page": PAGE}
+    if action == "payment_check":
+        row = payments.reconcile(str(data.get("order_ref") or ""), "status")
+        if not row:
+            raise AdminError(404, "not_found")
+        return {"ok": True, "status": row["status"], "check_failed": row.get("check_failed")}
+    if action == "payment_refund":
+        try:
+            return payments.refund(str(data.get("order_ref") or ""), data.get("amount"), data.get("reason"), "admin")
+        except payments.PaymentError as e:
+            raise AdminError(e.status, e.detail)
     if action == "leads":
         return {**store.leads(q, str(data.get("type") or ""), PAGE, page * PAGE), "page": page, "per_page": PAGE}
     if action == "trials":

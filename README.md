@@ -106,6 +106,15 @@ Visitors can only reach the site while this computer and the window are on.
 `--no-tunnel` runs it for this computer only. Test:
 `python lead-api/credentials_test.py`.
 
+## Subscriptions (HDFC SmartGateway)
+
+**Subscribe** on the pricing cards opens `/pay`. The customer enters billing details, accepts
+the terms and pays on HDFC Bank SmartGateway's own page. The server confirms the payment with
+HDFC's Order Status API, then activates the subscription and emails a receipt. The team sees
+orders and issues refunds under `/admin` → **Payments**. Settings, the flow, the billing
+database, tests and go-live steps: [docs/PAYMENTS.md](docs/PAYMENTS.md).
+Test: `python lead-api/payments_test.py`.
+
 ## Leads database and admin
 
 Every form sent from the landing page (contact, demo, brochure, plan enquiry…)

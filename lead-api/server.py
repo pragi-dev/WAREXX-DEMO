@@ -59,6 +59,7 @@ trial_secret()
 sys.path.insert(0, HERE)
 from http_handler import LeadHandler  # noqa: E402  (after the settings: modules read them on import)
 import lead_mail  # noqa: E402
+import payments  # noqa: E402
 import store  # noqa: E402
 import trial  # noqa: E402
 
@@ -72,6 +73,10 @@ def main():
     print(f"[lead api] database: {store.kind()}"
           + ("" if store.database_url() else f" ({store._sqlite_path()})")
           + ("; trial emails carry a login password" if trial.credentials_on() else ""), flush=True)
+    # payments (HDFC SmartGateway): checked at start-up; names only, never values
+    gaps = payments.missing()
+    print("[lead api] payments: " + (f"HDFC SmartGateway {payments.hdfc._env('HDFC_ENV')}, billing database "
+                                    + payments.billing.kind() if not gaps else "OFF — missing " + ", ".join(gaps)), flush=True)
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
