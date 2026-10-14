@@ -317,6 +317,21 @@ class LeadHandler(BaseHTTPRequestHandler):
                 return self._answer(200, result)
             if action == "billing":
                 return self._answer(200, payments.billing_history(data.get("session")))
+            # the WAREXX app's profile section (demo/account.jsx)
+            if action == "account_info":
+                return self._answer(200, payments.account_info(data.get("session")))
+            if action == "update_details":
+                return self._answer(200, payments.update_details(data.get("session"), data))
+            if action == "change_password":
+                if not _trial_allowed(self._ip()):
+                    return self._answer(429, {"detail": "too_many_attempts"})
+                return self._answer(200, payments.change_password(data.get("session"), data.get("current"), data.get("password")))
+            if action == "cancel_subscription":
+                return self._answer(200, payments.cancel(data.get("session"), data.get("reason")))
+            if action == "resume_subscription":
+                return self._answer(200, payments.resume(data.get("session")))
+            if action == "receipt":
+                return self._answer(200, payments.receipt(data.get("session"), data.get("order_ref")))
             return self._answer(400, {"detail": "bad_request"})
         except payments.PaymentError as e:
             return self._answer(e.status, {"detail": e.detail, **e.extra})

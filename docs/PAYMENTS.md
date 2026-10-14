@@ -85,6 +85,7 @@ product that the bank must enable; they are not used.
 | `POST /api/subscribe` `retry` | the order pass's holder | a new order after failed / cancelled / expired |
 | `POST /api/subscribe` `account` | the order pass's holder, once paid | the customer's password → signed in |
 | `POST /api/subscribe` `billing` | the customer's own session | their subscription and payments |
+| `POST /api/subscribe` `account_info`, `update_details`, `change_password`, `cancel_subscription`, `resume_subscription`, `receipt` | the customer's own session | WAREXX → My profile → **Subscription & billing** (below) |
 | `GET/POST /api/payment/return` | HDFC (customer's browser) | the return URL |
 | `POST /api/payment/webhook` | HDFC servers (Basic auth) | webhooks |
 | `POST /api/admin` `payments`, `payment_check`, `payment_refund` | the admin password | the team's list, "Check with HDFC", refunds |
@@ -92,6 +93,27 @@ product that the bank must enable; they are not used.
 There is no customer refund endpoint. `/api/subscribe` accepts JSON only (a cross-site form
 cannot post it). Checkout is limited to 20 an hour per address and 10 per email; status lookups
 to 600 an hour per address.
+
+## In WAREXX: My profile → Subscription & billing
+
+A signed-in customer opens it from the user menu (**Subscription & billing**) or from **My profile**.
+The panel is `frontend/demo/account.jsx`. The WAREXX app renders it through `window.WAREXX_ACCOUNT_PANEL`;
+without that, nothing changes in the production app. Re-apply this hook after `npm run sync:app`.
+
+- **Subscription:** plan, status, paid-until, current period, workspace, account email.
+  - **Renew early** and **Switch to Annual/Monthly** go to `/pay`; the new period starts when the current one ends.
+- **Cancel subscription:** asks for confirmation and an optional reason.
+  - Access continues to the end of the paid period, then the subscription ends (`cancelled`, no grace period).
+  - Nothing is refunded automatically (Refund & Cancellation Policy), and an email confirms it to the customer and the team.
+  - **Keep my subscription** undoes it before the period ends; paying for another period also undoes it.
+- **Billing details:** used on the next payment and receipt; past receipts don't change.
+- **Payments & receipts:** every order, with a printable receipt (Print / save as PDF).
+- **Sign-in password:** change it, with the current one.
+- **Sign out of WAREXX.**
+- **Free-trial users and the plain demo** see their trial's end and a Subscribe button instead.
+
+Each action is answered for the session's own customer only, and cancel, resume, details and
+password changes go into the audit trail.
 
 ## The billing database
 

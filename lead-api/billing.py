@@ -175,8 +175,17 @@ _V1 = [
     "CREATE INDEX billing_audit_order ON billing_audit (order_ref, at)",
 ]
 
+#: v2: cancelling from the customer's profile — the subscription stays active
+#: until the end of the paid period, then ends (no grace); undone by "resume"
+#: or by paying for another period.
+_V2 = [
+    "ALTER TABLE billing_subscriptions ADD COLUMN cancel_at_period_end BOOLEAN NOT NULL DEFAULT FALSE",
+    "ALTER TABLE billing_subscriptions ADD COLUMN cancel_requested_at TIMESTAMPTZ",
+    "ALTER TABLE billing_subscriptions ADD COLUMN cancel_reason TEXT",
+]
+
 #: (version, statements). Append only; never edit one that has shipped.
-MIGRATIONS = [(1, _V1)]
+MIGRATIONS = [(1, _V1), (2, _V2)]
 
 
 def _connect():

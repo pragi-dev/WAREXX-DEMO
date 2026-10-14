@@ -13,6 +13,7 @@ import '../vendor/warexx-app/src/ui/screens.css'
 import './demo.css'
 import { TRIAL_ON, TrialGate, TrialWatch, checkSession, reportTour, takeTicketFromUrl, trialUser } from './trial.jsx'
 import { TourHost, startTour } from './tour.jsx'
+import { AccountPanel } from './account.jsx'
 
 // The public landing page, for "Talk to us" when the visitor did not arrive from
 // it. Public, build-time, never a secret (see ../.env.example).
@@ -96,6 +97,8 @@ ready().then(async () => {
     }
   }
   signIn()
+  // My profile → Subscription & billing: the customer's own account (account.jsx)
+  window.WAREXX_ACCOUNT_PANEL = AccountPanel
   const { default: App } = await import('../vendor/warexx-app/src/App.jsx')
   document.getElementById('boot')?.remove()
   document.body.classList.add('wxdemo')

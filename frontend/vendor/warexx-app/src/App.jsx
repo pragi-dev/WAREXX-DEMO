@@ -13925,7 +13925,14 @@ function ChangePassword({ onClose, toast }) {
 //  their own slice of the audit trail, so "what did I do this morning" has an
 //  answer without the admin-only Activity screen.
 // ==========================================================================
-function MyProfile({ onClose, toast, onPassword, onSaved, companyName, perms }) {
+//  A host page may add the customer's own account panel (subscription, billing,
+//  cancellation) by setting window.WAREXX_ACCOUNT_PANEL to a React component —
+//  the public demo site does (landing-demo/frontend/demo/account.jsx). Without
+//  one, nothing here changes.
+const accountPanel = () => (typeof window !== 'undefined' && window.WAREXX_ACCOUNT_PANEL) || null
+
+function MyProfile({ onClose, toast, onPassword, onSaved, companyName, perms, focus }) {
+  const AccountPanel = accountPanel()
   const [p, setP] = useState(null)
   const [form, setForm] = useState({ full_name: '', job_title: '', email: '', phone: '' })
   const [busy, setBusy] = useState(false)
@@ -13948,6 +13955,12 @@ function MyProfile({ onClose, toast, onPassword, onSaved, companyName, perms }) 
     window.addEventListener('keydown', esc)
     return () => window.removeEventListener('keydown', esc)
   }, [onClose])
+  // opened from the menu's "Subscription & billing": straight to that section
+  useEffect(() => {
+    if (focus !== 'billing' || !p) return
+    const t = setTimeout(() => document.getElementById('prof-billing')?.scrollIntoView({ block: 'start', behavior: 'smooth' }), 150)
+    return () => clearTimeout(t)
+  }, [focus, p])
 
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
   const dirty = p && ['full_name', 'job_title', 'email', 'phone'].some((k) => (form[k] || '').trim() !== (p[k] || ''))
@@ -14014,6 +14027,8 @@ function MyProfile({ onClose, toast, onPassword, onSaved, companyName, perms }) 
                 <button className="btn primary" type="submit" disabled={busy || !dirty}>{busy ? 'Saving…' : 'Save changes'}</button>
               </div>
             </form>
+
+            {AccountPanel && <AccountPanel toast={toast} />}
 
             <div className="prof-section">Account</div>
             <dl className="prof-facts">
@@ -19276,6 +19291,10 @@ export default function App() {
             </div>
             <button role="menuitem" className="pop-row" onClick={() => { setMenu(null); setShowProfile(true) }}>
               <Icon name="usercheck" size={16} /><span className="pop-tx"><b>My profile</b></span></button>
+            {accountPanel() && (
+              <button role="menuitem" className="pop-row" onClick={() => { setMenu(null); setShowProfile('billing') }}>
+                <Icon name="receipt" size={16} /><span className="pop-tx"><b>Subscription &amp; billing</b></span></button>
+            )}
             <button role="menuitem" className="pop-row" onClick={() => { setMenu(null); setShowPassword(true) }}>
               <Icon name="key" size={16} /><span className="pop-tx"><b>Change password</b></span></button>
             {isSuper && (
@@ -19359,6 +19378,7 @@ export default function App() {
         onChanged={refreshStatus} toast={toast} />}
       {showPassword && <ChangePassword onClose={() => setShowPassword(false)} toast={toast} />}
       {showProfile && <MyProfile onClose={() => setShowProfile(false)} toast={toast} companyName={companyName} perms={perms}
+        focus={showProfile}
         onPassword={() => { setShowProfile(false); setShowPassword(true) }}
         onSaved={(p) => setFullName(p.full_name || '')} />}
       {toastMsg && <div className={'toast ' + (toastMsg.kind || '')} role="status">{toastText(toastMsg.m)}</div>}

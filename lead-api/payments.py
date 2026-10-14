@@ -352,7 +352,7 @@ def _refresh(t, sub, at=None):
     end, grace = billing.parse(sub.get("current_period_end")), billing.parse(sub.get("grace_until"))
     new = sub["status"]
     if sub["status"] in ("active", "grace") and end and at >= end:
-        new = "grace" if grace and at < grace else "expired"
+        new = "cancelled" if sub.get("cancel_at_period_end") else "grace" if grace and at < grace else "expired"
     if new != sub["status"]:
         t.run("UPDATE billing_subscriptions SET status = %s, updated_at = %s WHERE id = %s", (new, at, sub["id"]))
         _audit(t, "system", "subscription_" + new, None, sub["customer_id"], {"from": sub["status"]})
@@ -372,8 +372,9 @@ def _activate(t, o, sub):
     finish = _add_interval(start, plan["unit"], plan["count"])
     grace = finish + dt.timedelta(days=grace_days()) if grace_days() else None
     t.run("""UPDATE billing_subscriptions SET plan_code = %s, status = 'active', current_period_start = %s,
-               current_period_end = %s, grace_until = %s, cancelled_at = NULL, updated_at = %s WHERE id = %s""",
-          (o["plan_code"], start, finish, grace, n, sub["id"]))
+               current_period_end = %s, grace_until = %s, cancelled_at = NULL, cancel_at_period_end = %s,
+               cancel_requested_at = NULL, cancel_reason = NULL, updated_at = %s WHERE id = %s""",
+          (o["plan_code"], start, finish, grace, False, n, sub["id"]))
     t.run("""UPDATE billing_orders SET activated_at = %s, paid_at = COALESCE(paid_at, %s), period_start = %s,
                period_end = %s, updated_at = %s WHERE id = %s""", (n, n, start, finish, n, o["id"]))
     cust = t.one("SELECT * FROM billing_customers WHERE id = %s", (o["customer_id"],))
@@ -708,6 +709,161 @@ def billing_history(session_token):
                         "plan_name": PLANS[o["plan_code"]]["name"]} for o in orders]}
 
 
+# ---- the customer's profile (the WAREXX app → My profile → Subscription & billing) ----------
+# Every action takes the customer's own session (a signed pass, "p": "sub"):
+# whose account it is comes from there, never from the request.
+
+def _me(t, session_token, lock=False):
+    email = _session_email(session_token)
+    if not email:
+        raise PaymentError(401, "signed_out")
+    c = t.one("SELECT * FROM billing_customers WHERE email = %s" + (" FOR UPDATE" if lock else ""), (email,))
+    if not c:
+        raise PaymentError(404, "not_found")
+    sub = t.one("SELECT * FROM billing_subscriptions WHERE customer_id = %s" + (" FOR UPDATE" if lock else ""), (c["id"],))
+    return c, (_refresh(t, sub) if sub else None)
+
+
+_DETAILS = ("name", "phone", "company", "gstin", "address", "city", "state", "postcode", "country")
+
+
+def account_info(session_token):
+    """The profile section: the account, the subscription, the payments. A trial
+    visitor's session (no subscription) answers who they are and until when."""
+    try:
+        s = trial.unsign(session_token, "s")
+    except trial.TrialError:
+        raise PaymentError(401, "signed_out")
+    if s.get("p") != "sub":
+        return {"ok": True, "kind": "trial", "email": s["e"], "trial_end": s["x"]}
+    with billing.tx() as t:
+        c, sub = _me(t, session_token)
+        orders = t.all("""SELECT o.order_ref, o.created_at, o.plan_code, o.kind, o.amount, o.list_base, o.tax_percent, o.list_tax,
+                                 o.list_total, o.currency, o.status, o.environment, o.paid_at, o.period_start, o.period_end,
+                                 o.amount_refunded, o.payment_method, i.invoice_no
+                          FROM billing_orders o LEFT JOIN billing_invoices i ON i.order_id = o.id
+                          WHERE o.customer_id = %s AND o.status <> 'created' ORDER BY o.created_at DESC LIMIT 50""", (c["id"],))
+    money_keys = ("amount", "list_base", "list_tax", "list_total", "amount_refunded")
+    return {"ok": True, "kind": "subscriber", "email": c["email"], "workspace": c["tenant_slug"],
+            "details": {k: c[k] or "" for k in _DETAILS},
+            "account_created_at": c["account_created_at"], "last_login_at": c["last_login_at"],
+            "subscription": None if not sub else {
+                "plan": sub["plan_code"], "plan_name": PLANS[sub["plan_code"]]["name"], "status": sub["status"],
+                "period_start": sub["current_period_start"], "period_end": sub["current_period_end"],
+                "grace_until": sub["grace_until"], "cancel_at_period_end": bool(sub.get("cancel_at_period_end")),
+                "cancel_requested_at": sub.get("cancel_requested_at"), "cancelled_at": sub["cancelled_at"]},
+            "plans": {code: {"name": p["name"], "period": p["period"]} for code, p in PLANS.items()},
+            "orders": [{**o, **{k: str(billing.money(o[k])) for k in money_keys}, "tax_percent": str(o["tax_percent"]),
+                        "plan_name": PLANS[o["plan_code"]]["name"]} for o in orders]}
+
+
+def update_details(session_token, data):
+    """The billing details on future orders and receipts. The email (the sign-in)
+    and past receipts do not change."""
+    f = {k: re.sub(r"\s+", " ", str(data.get(k) or "")).strip()[:LIMITS[k]] for k in _DETAILS}
+    f["gstin"] = f["gstin"].upper()
+    bad = {}
+    for k in ("name", "company", "address", "city", "state", "country"):
+        if not f[k]:
+            bad[k] = "required"
+    if len(hdfc.clean_phone(f["phone"])) < 10:
+        bad["phone"] = "invalid"
+    if not f["postcode"]:
+        bad["postcode"] = "required"
+    elif f["country"] == "India" and not re.fullmatch(r"\d{6}", f["postcode"]):
+        bad["postcode"] = "invalid"
+    if f["gstin"] and not _GSTIN.match(f["gstin"]):
+        bad["gstin"] = "invalid"
+    if bad:
+        raise PaymentError(422, "invalid_fields", fields=bad)
+    with billing.tx() as t:
+        c, _ = _me(t, session_token, lock=True)
+        t.run("""UPDATE billing_customers SET name = %s, phone = %s, company = %s, gstin = %s, address = %s, city = %s,
+                   state = %s, postcode = %s, country = %s, updated_at = %s WHERE id = %s""",
+              (f["name"], f["phone"], f["company"], f["gstin"] or None, f["address"], f["city"], f["state"], f["postcode"],
+               f["country"], billing.now(), c["id"]))
+        _audit(t, "customer", "details_updated", None, c["id"], {"fields": sorted(k for k in _DETAILS if (c[k] or "") != f[k])})
+    return {"ok": True, "details": f}
+
+
+def change_password(session_token, current, new):
+    if not isinstance(new, str) or len(new) < trial.MIN_PASSWORD:
+        raise PaymentError(422, "weak_password")
+    with billing.tx() as t:
+        c, _ = _me(t, session_token, lock=True)
+        if not c["pw_hash"] or not trial.hmac.compare_digest(trial._hash(str(current or ""), c["pw_salt"]), c["pw_hash"]):
+            raise PaymentError(401, "wrong_password")
+        salt, hash_ = trial.password_record(new)
+        t.run("UPDATE billing_customers SET pw_salt = %s, pw_hash = %s, updated_at = %s WHERE id = %s",
+              (salt, hash_, billing.now(), c["id"]))
+        _audit(t, "customer", "password_changed", None, c["id"])
+    return {"ok": True}
+
+
+def cancel(session_token, reason=""):
+    """Cancel: nothing is charged again (payments are one-time anyway), and the
+    paid period runs to its end — then the subscription ends. No refund is made
+    here; refunds follow the Refund & Cancellation Policy, through the team."""
+    with billing.tx() as t:
+        c, sub = _me(t, session_token, lock=True)
+        if not sub or sub["status"] not in ("active", "grace"):
+            raise PaymentError(409, "not_active")
+        if sub.get("cancel_at_period_end"):
+            return {"ok": True, "already": True, "ends_at": sub["current_period_end"]}
+        n = billing.now()
+        t.run("""UPDATE billing_subscriptions SET cancel_at_period_end = %s, cancel_requested_at = %s, cancel_reason = %s,
+                   updated_at = %s WHERE id = %s""", (True, n, str(reason or "")[:300] or None, n, sub["id"]))
+        _audit(t, "customer", "cancel_requested", None, c["id"], {"ends_at": sub["current_period_end"]})
+    _send_cancel_note(c, sub, str(reason or "")[:300])
+    return {"ok": True, "ends_at": sub["current_period_end"]}
+
+
+def resume(session_token):
+    """Undo a cancellation before the period ends."""
+    with billing.tx() as t:
+        c, sub = _me(t, session_token, lock=True)
+        if not sub or sub["status"] not in ("active", "grace") or not sub.get("cancel_at_period_end"):
+            raise PaymentError(409, "not_cancelled")
+        t.run("""UPDATE billing_subscriptions SET cancel_at_period_end = %s, cancel_requested_at = NULL, cancel_reason = NULL,
+                   updated_at = %s WHERE id = %s""", (False, billing.now(), sub["id"]))
+        _audit(t, "customer", "cancel_withdrawn", None, c["id"])
+    return {"ok": True}
+
+
+def receipt(session_token, order_ref):
+    """One of the customer's own receipts (a paid order), for printing."""
+    with billing.tx() as t:
+        c, _ = _me(t, session_token)
+        r = t.one("""SELECT i.invoice_no, i.issued_at, i.base, i.tax_percent, i.tax, i.total, i.amount_charged, i.currency,
+                            i.environment, i.gstin, i.bill_to, o.order_ref, o.plan_code, o.period_start, o.period_end,
+                            o.payment_method, o.txn_id, o.amount_refunded
+                     FROM billing_invoices i JOIN billing_orders o ON o.id = i.order_id
+                     WHERE o.order_ref = %s AND i.customer_id = %s""", (str(order_ref or ""), c["id"]))
+    if not r:
+        raise PaymentError(404, "not_found")
+    for k in ("base", "tax", "total", "amount_charged", "amount_refunded"):
+        r[k] = str(billing.money(r[k]))
+    r["tax_percent"] = str(r["tax_percent"])
+    return {"ok": True, "receipt": {**r, "plan_name": PLANS[r["plan_code"]]["name"], "customer": c["name"],
+                                    "email": c["email"], "company": c["company"]}}
+
+
+def _send_cancel_note(c, sub, reason):
+    try:
+        end = str(sub["current_period_end"] or "")[:10]
+        text = (f"Hi {(c['name'].split() or ['there'])[0]},\n\nYour WAREXX subscription is cancelled. You keep access until "
+                f"{end}; nothing more will be charged.\n\nChanged your mind? Open WAREXX → My profile → Subscription & billing "
+                f"→ Keep my subscription, any time before {end}.\n\nTeam WAREXX\n")
+        lead_mail._deliver(lead_mail._message(c["email"], "Your WAREXX subscription is cancelled", text,
+                                              lead_mail._wrap("<p>" + html.escape(text).replace("\n\n", "</p><p>") + "</p>")))
+        lead_mail._deliver(lead_mail._message(lead_mail.NOTIFY_TO, f"WAREXX subscription cancelled: {c['company']}",
+                                              f"{c['company']} ({c['email']}) cancelled; access ends {end}.\nReason: {reason or '-'}\n",
+                                              lead_mail._wrap(f"<p>{html.escape(c['company'])} ({html.escape(c['email'])}) cancelled; "
+                                                              f"access ends {html.escape(end)}.</p><p>Reason: {html.escape(reason or '-')}</p>")))
+    except Exception as exc:  # noqa: BLE001
+        print(f"[payments] cancellation email not sent: {type(exc).__name__}", flush=True)
+
+
 # ---- the team (admin.py) --------------------------------------------------------------------
 
 def admin_orders(q="", status_="", limit=50, offset=0):
@@ -724,7 +880,7 @@ def admin_orders(q="", status_="", limit=50, offset=0):
         rows = t.all(f"""SELECT o.order_ref, o.created_at, o.plan_code, o.kind, o.environment, o.amount, o.list_total, o.currency,
                                 o.status, o.gateway_status, o.payment_method, o.amount_refunded, o.paid_at, o.period_end,
                                 o.failure_reason, c.name, c.email, c.phone, c.company, c.gstin, c.tenant_slug,
-                                s.status AS subscription_status, i.invoice_no
+                                s.status AS subscription_status, s.cancel_at_period_end, i.invoice_no
                          FROM billing_orders o JOIN billing_customers c ON c.id = o.customer_id
                          JOIN billing_subscriptions s ON s.id = o.subscription_id
                          LEFT JOIN billing_invoices i ON i.order_id = o.id{w}

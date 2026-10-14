@@ -105,3 +105,56 @@ body.wxtrial-ended .wxdemo-banner { display: none; }
 .wxtour-check { display: inline-grid; place-items: center; width: 44px; height: 44px; margin-bottom: 10px; border-radius: 50%;
   background: #FDF3EC; color: #D9601B; font-size: 22px; font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .wxtour-bar i { transition: none; } }
+
+/* ---- My profile → Subscription & billing (account.jsx) ---- */
+.wxacc .prof-facts dd .wxacc-pill { font-size: 12px; }
+.wxacc-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 600;
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line); white-space: nowrap; }
+.wxacc-pill.ok { background: rgba(35, 136, 90, .14); color: #1f8a57; border-color: rgba(35, 136, 90, .3); }
+.wxacc-pill.warn { background: rgba(238, 122, 30, .14); color: #c25e10; border-color: rgba(238, 122, 30, .35); }
+.wxacc-pill.bad { background: rgba(210, 69, 47, .12); color: var(--danger, #d2452f); border-color: rgba(210, 69, 47, .3); }
+.wxacc-note { margin: 8px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--text-2); }
+.wxacc-note a, .wxacc-box a:not(.btn) { color: var(--accent, #ee7a1e); }
+.wxacc-acts { flex-wrap: wrap; margin-top: 12px; }
+.wxacc-box { display: flex; gap: 14px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-top: 12px;
+  padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-size: 13px; line-height: 1.5; color: var(--text); }
+.wxacc-box.warn { border-color: rgba(238, 122, 30, .4); background: rgba(238, 122, 30, .07); }
+.wxacc-box.bad { border-color: rgba(210, 69, 47, .35); background: rgba(210, 69, 47, .06); }
+.wxacc-box > div { flex: 1 1 280px; min-width: 0; }
+.wxacc-box p { margin: 6px 0 10px; color: var(--text-2); }
+.wxacc-box .field { max-width: 320px; margin: 0; }
+.wxacc-row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+.wxacc-danger { color: var(--danger, #d2452f); border-color: rgba(210, 69, 47, .45); }
+.wxacc-danger.solid { background: var(--danger, #d2452f); color: #fff; border-color: transparent; }
+.wxacc-wide { grid-column: 1 / -1; }
+.wxacc .field input[aria-invalid="true"] { border-color: var(--danger, #d2452f); }
+.wxacc-table { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+.wxacc-table table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wxacc-table th { text-align: left; font-weight: 600; font-size: 11.5px; color: var(--muted); padding: 8px 12px; background: var(--panel-2); }
+.wxacc-table td { padding: 8px 12px; border-top: 1px solid var(--line); color: var(--text); white-space: nowrap; }
+.wxacc-table small { color: var(--muted); }
+.wxacc-link { padding: 2px 8px; font-size: 12.5px; }
+.wxacc-rcpt-scrim { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 16px; background: rgba(20, 20, 20, .5); }
+.wxacc-rcpt { width: 560px; max-width: 100%; max-height: calc(100vh - 32px); overflow: auto; padding: 26px 28px; border-radius: 16px;
+  background: #fff; color: #1d1d1f; box-shadow: 0 24px 60px rgba(0, 0, 0, .3); font-size: 13.5px; }
+.wxacc-rcpt-head { display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 12px; border-bottom: 2px solid #ee7a1e; margin-bottom: 14px; }
+.wxacc-rcpt-head b { font-size: 22px; letter-spacing: -.02em; }
+.wxacc-rcpt-head span { font-size: 13px; color: #6e675e; text-transform: uppercase; letter-spacing: .06em; }
+.wxacc-rcpt-test { margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; background: #fff4ea; color: #a5520f; font-size: 12.5px; }
+.wxacc-rcpt table { width: 100%; border-collapse: collapse; }
+.wxacc-rcpt th { text-align: left; font-weight: 500; color: #6e675e; padding: 4px 12px 4px 0; vertical-align: top; width: 38%; }
+.wxacc-rcpt td { padding: 4px 0; }
+.wxacc-rcpt-sum { margin-top: 14px; border-top: 1px solid #e6e1d8; }
+.wxacc-rcpt-sum th { width: auto; }
+.wxacc-rcpt-sum td { text-align: right; font-variant-numeric: tabular-nums; }
+.wxacc-rcpt-sum tr.tot th, .wxacc-rcpt-sum tr.tot td { font-weight: 700; color: #1d1d1f; border-top: 1px solid #e6e1d8; padding-top: 8px; }
+.wxacc-rcpt-small { margin: 10px 0 0; font-size: 12px; color: #6e675e; }
+.wxacc-rcpt .wxacc-row { margin-top: 18px; }
+@media print {
+  body.wxacc-printable > *:not(.wxacc-rcpt-scrim) { display: none !important; }
+  body.wxacc-printable .wxacc-rcpt-scrim { position: static; background: none; padding: 0; }
+  body.wxacc-printable .wxacc-rcpt { box-shadow: none; max-height: none; width: auto; }
+  .wxacc-noprint { display: none !important; }
+}
+/* the trial countdown / subscriber note stays out of the way of My profile and the receipt */
+body:has(.prof-scrim) .wxtrial-timer, body:has(.wxacc-rcpt-scrim) .wxtrial-timer { display: none; }

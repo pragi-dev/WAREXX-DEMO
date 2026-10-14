@@ -351,6 +351,45 @@ ok(code == 404, "…nor read the first customer's order")
 code, r = sub({"action": "billing", "session": b["token"]})
 ok(code == 401, "…nor their billing history (an order pass is not a session)")
 
+print("the profile section (WAREXX → My profile → Subscription & billing)")
+code, r = sub({"action": "account_info"})
+ok(code == 401, "no session: refused")
+code, i = sub({"action": "account_info", "session": acc["session"]})
+ok(code == 200 and i["kind"] == "subscriber" and i["details"]["name"] == "Asha Rao" and i["subscription"]["status"] == "active"
+   and i["orders"][0]["invoice_no"] and "pw_hash" not in json.dumps(i), "the account, subscription and payments (no password hash)")
+code, r = sub({"action": "account_info", "session": trial.sign({"k": "s", "e": "visitor@example.com", "s": 0, "x": 9999999999})})
+ok(code == 200 and r["kind"] == "trial", "a trial visitor's session: a trial, nothing of anyone's billing")
+det = {**i["details"], "phone": "123"}
+code, r = sub({"action": "update_details", "session": acc["session"], **det})
+ok(code == 422 and "phone" in r["fields"], "billing details are checked")
+code, r = sub({"action": "update_details", "session": acc["session"], **i["details"], "gstin": "33aadce6591n1z7", "city": "Tiruppur"})
+ok(code == 200 and sub({"action": "account_info", "session": acc["session"]})[1]["details"]["gstin"] == "33AADCE6591N1Z7",
+   "billing details saved (GSTIN upper-cased)")
+code, r = sub({"action": "change_password", "session": acc["session"], "current": "nope-nope", "password": "a-new-password-1"})
+ok(code == 401, "changing the password needs the current one")
+code, r = sub({"action": "change_password", "session": acc["session"], "current": "asha-strong-pass", "password": "a-new-password-1"})
+ok(code == 200 and post("/api/trial", {"action": "signin", "email": "asha@example.com", "password": "a-new-password-1"})[0] == 200
+   and post("/api/trial", {"action": "signin", "email": "asha@example.com", "password": "asha-strong-pass"})[0] == 401,
+   "the new password signs in, the old one no longer does")
+sub({"action": "change_password", "session": acc["session"], "current": "a-new-password-1", "password": "asha-strong-pass"})
+code, r = sub({"action": "receipt", "session": acc["session"], "order_ref": a["order_ref"]})
+ok(code == 200 and r["receipt"]["invoice_no"] and r["receipt"]["total"] == "35398.82", "the customer's own receipt")
+code, r = sub({"action": "receipt", "session": acc["session"], "order_ref": b["order_ref"]})
+ok(code == 404, "…never someone else's")
+code, r = sub({"action": "cancel_subscription", "session": acc["session"], "reason": "testing"})
+ok(code == 200 and r["ends_at"], "cancel: accepted, access until the end of the paid period")
+i = sub({"action": "account_info", "session": acc["session"]})[1]
+ok(i["subscription"]["cancel_at_period_end"] and i["subscription"]["status"] == "active"
+   and post("/api/trial", {"action": "verify", "session": acc["session"]})[0] == 200, "…still active until then")
+ok(any("cancelled" in (m["subject"] or "").lower() and m["to"] == "asha@example.com" for m in mails()), "…and confirmed by email")
+code, r = sub({"action": "cancel_subscription", "session": acc["session"]})
+ok(code == 200 and r.get("already"), "cancelling twice changes nothing")
+code, r = sub({"action": "resume_subscription", "session": acc["session"]})
+ok(code == 200 and not sub({"action": "account_info", "session": acc["session"]})[1]["subscription"]["cancel_at_period_end"],
+   "keep my subscription: the cancellation is withdrawn")
+ok(any(x["action"] == "cancel_requested" for x in rows("SELECT action FROM billing_audit WHERE customer_id = %s", (cu["id"],))),
+   "cancel and resume are in the audit trail")
+
 print("failed, then retried")
 fake.set(b["order_ref"], "AUTHORIZATION_FAILED", override={"bank_error_message": "Insufficient funds"})
 ret(b["order_ref"], "AUTHORIZATION_FAILED")
@@ -405,6 +444,20 @@ fake.mode["status_5xx"] = 2
 fake.set(r["order_ref"], "CHARGED")
 row = payments.reconcile(r["order_ref"])
 ok(row["status"] == "paid", "the Order Status API failing twice (5xx), then answering: retried, paid")
+
+print("a cancelled subscription ends with its period")
+fay = trial.sign({"k": "s", "e": "fay@example.com", "s": 0, "x": 9999999999, "n": "x", "p": "sub"})
+code, r = sub({"action": "cancel_subscription", "session": fay})
+ok(code == 200, "cancelled")
+with billing.tx() as t:
+    t.run("UPDATE billing_subscriptions SET current_period_start = %s, current_period_end = %s "
+          "WHERE customer_id = (SELECT id FROM billing_customers WHERE email = 'fay@example.com')",
+          (billing.now() - billing.dt.timedelta(days=31), billing.now() - billing.dt.timedelta(minutes=1)))
+ok(not payments.subscriber_access("fay@example.com")
+   and rows("SELECT s.status FROM billing_subscriptions s JOIN billing_customers c ON c.id = s.customer_id WHERE c.email = 'fay@example.com'")[0]["status"] == "cancelled",
+   "after the period: cancelled, no access (no grace for a cancellation)")
+code, r = sub({"action": "resume_subscription", "session": fay})
+ok(code == 409, "too late to undo — pay again instead")
 
 print("refunds (the team only)")
 code, login = post("/api/admin", {"action": "login", "password": "admin-pass-for-tests"})
